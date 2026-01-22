@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 from typing import Any, Dict, List, Set, Tuple
-
 from CAPSlock.models import SignInContext, ConditionEval
 
 def _get_apps_from_condition(detail: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:

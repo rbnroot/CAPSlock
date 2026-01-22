@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 import json
 import os
 from typing import Any, Dict, List
-
 from sqlalchemy.orm import sessionmaker
-
 from roadtools.roadlib.metadef import database
 from roadtools.roadlib.metadef.database import Policy
 

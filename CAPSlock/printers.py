@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 from typing import List, Set, Tuple, Any, Dict
-
 from CAPSlock.models import PolicyResult
 
 

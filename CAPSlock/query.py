@@ -1,9 +1,6 @@
 from __future__ import annotations
-
 from typing import List, Optional
-
 from roadtools.roadlib.metadef.database import User, Group, DirectoryRole
-
 from CAPSlock.db import load_capolicies, parse_policy_details
 from CAPSlock.models import SignInContext, PolicyResult, UserContext
 from CAPSlock.resolvers import build_name_resolver

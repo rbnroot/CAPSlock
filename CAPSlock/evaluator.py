@@ -1,9 +1,6 @@
 from __future__ import annotations
-
 from typing import Any, Dict, List, Set, Optional
-
 from roadtools.roadlib.metadef.database import Policy
-
 from CAPSlock.models import PolicyResult, UserContext, SignInContext
 from CAPSlock.targeting import evaluate_user_targeting
 from CAPSlock.conditions import evaluate_conditions

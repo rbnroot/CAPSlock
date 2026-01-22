@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 from typing import Any, Dict, Optional, Set
-
 from CAPSlock.models import UserContext, TargetingResult, NameResolver
 from CAPSlock.resolvers import friendly_ids
 

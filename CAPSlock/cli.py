@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 import argparse
-
 from CAPSlock.db import DB_PATH, get_session
 from CAPSlock.models import SignInContext
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
