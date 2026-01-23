@@ -13,6 +13,8 @@ ENV/
 htmlcov/
 
 roadrecon.db
+.roadtools_auth
+*.json
 *.sqlite
 *.sqlite3
 

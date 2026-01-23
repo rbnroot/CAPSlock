@@ -3,7 +3,7 @@ import argparse
 from CAPSlock.db import DB_PATH, get_session
 from CAPSlock.models import SignInContext
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
-from CAPSlock.query import get_policy_results_for_user
+from CAPSlock.query import get_policy_results_for_user, convert_from_id, convert_from_name
 from CAPSlock.printers import print_sections_get_policies, print_sections_what_if
 
 
@@ -81,6 +81,23 @@ def cmd_what_if(args) -> int:
     finally:
         session.close()
 
+from CAPSlock.query import convert_from_id, convert_from_name
+
+def cmd_convert(args) -> int:
+    session = get_session(args.db)
+    try:
+        if getattr(args, "object_id", None):
+            lines = convert_from_id(session, args.object_id)
+        else:
+            lines = convert_from_name(session, args.friendly_name)
+
+        for line in lines:
+            print(line)
+
+        return 0
+    finally:
+        session.close()
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -117,6 +134,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p2.add_argument("--strict", action="store_true", help="Only show policies that definitively apply (hide runtime-dependent policies)")
     p2.set_defaults(func=cmd_what_if)
+
+    #Convert parser
+    p3 = sub.add_parser("convert", help="Convert ID <-> friendly name using roadrecon.db")
+    p3.add_argument("--db", default=DB_PATH, help="Path to roadrecon.db (default: roadrecon.db)")
+
+    g = p3.add_mutually_exclusive_group(required=True)
+    g.add_argument("-id", "--id", dest="object_id", help="Object ID (GUID)")
+    g.add_argument("-name", "--name", dest="friendly_name", help="Friendly name / UPN / displayName")
+    p3.set_defaults(func=cmd_convert)
 
     return parser
 

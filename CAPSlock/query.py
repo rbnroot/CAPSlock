@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional
-from roadtools.roadlib.metadef.database import User, Group, DirectoryRole
+from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal
 from CAPSlock.db import load_capolicies, parse_policy_details
 from CAPSlock.models import SignInContext, PolicyResult, UserContext
 from CAPSlock.resolvers import build_name_resolver
@@ -74,3 +74,75 @@ def get_policy_results_for_user(
             )
 
     return results
+
+def convert_from_id(session, object_id: str) -> List[str]:
+    out: List[str] = []
+    oid = object_id.strip()
+
+    u = session.query(User).filter(User.objectId == oid).one_or_none()
+    if u:
+        label = u.userPrincipalName or u.displayName or "(no upn)"
+        out.append(f"[User]: {label} - {u.objectId}")
+
+    g = session.query(Group).filter(Group.objectId == oid).one_or_none()
+    if g:
+        label = g.displayName or "(no name)"
+        out.append(f"[Group]: {label} - {g.objectId}")
+
+    r = session.query(DirectoryRole).filter(DirectoryRole.roleTemplateId == oid).one_or_none()
+    if r:
+        label = r.displayName or "(no name)"
+        out.append(f"[Role]: {label} - {r.objectId}")
+
+    a = session.query(Application).filter(Application.objectId == oid).one_or_none()
+    if a:
+        label = a.displayName or "(no name)"
+        out.append(f"[Application]: {label} - {a.objectId}")
+
+    sp = session.query(ServicePrincipal).filter(ServicePrincipal.appId == oid).one_or_none()
+    if sp:
+        label = sp.displayName or "(no name)"
+        out.append(f"[ServicePrincipal]: {label} - {sp.objectId}")
+
+    if not out:
+        out.append(f"[Unknown]: {oid}")
+
+    return out
+
+def convert_from_name(session, name: str, limit: int = 10) -> List[str]:
+    out: List[str] = []
+    q = name.strip()
+    if not q:
+        return ["[Unknown]: (empty)"]
+
+    users = session.query(User).filter(
+        (User.userPrincipalName == q) | (User.displayName == q)
+    ).limit(limit).all()
+    for u in users:
+        label = u.userPrincipalName or u.displayName or "(no upn)"
+        out.append(f"[User]: {label} - {u.objectId}")
+
+    groups = session.query(Group).filter(Group.displayName == q).limit(limit).all()
+    for g in groups:
+        label = g.displayName or "(no name)"
+        out.append(f"[Group]: {label} - {g.objectId}")
+
+    roles = session.query(DirectoryRole).filter(DirectoryRole.displayName == q).limit(limit).all()
+    for r in roles:
+        label = r.displayName or "(no name)"
+        out.append(f"[Role]: {label} - {r.objectId}")
+
+    apps = session.query(Application).filter(Application.displayName == q).limit(limit).all()
+    for a in apps:
+        label = a.displayName or "(no name)"
+        out.append(f"[Application]: {label} - {a.objectId}")
+
+    sps = session.query(ServicePrincipal).filter(ServicePrincipal.displayName == q).limit(limit).all()
+    for sp in sps:
+        label = sp.displayName or "(no name)"
+        out.append(f"[ServicePrincipal]: {label} - {sp.objectId}")
+
+    if not out:
+        out.append(f"[Unknown]: {q}")
+
+    return out

@@ -79,7 +79,7 @@ def evaluate_policy_detail(
         effect = "Grant"
 
     if runtime_notes:
-        note = " | Runtime-dependent: " + ", ".join(runtime_notes[:2]) + ("..." if len(runtime_notes) > 2 else "")
+        note = " | Signal-dependent: " + ", ".join(runtime_notes[:2]) + ("..." if len(runtime_notes) > 2 else "")
         reason = tgt.applies_reason + note
     else:
         reason = tgt.applies_reason

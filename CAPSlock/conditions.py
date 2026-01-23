@@ -131,7 +131,7 @@ def _eval_trusted_location_condition(detail: Dict[str, Any], signin_ctx: SignInC
 
     return ConditionEval(
         matched=True,
-        reason="Locations: policy uses named locations (not fully modeled in MVP2)",
+        reason="Locations: policy uses named locations (not fully modeled in yet)",
         runtime_dependent=True
     )
 
