@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional
+from sqlalchemy import func
 from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal
 from CAPSlock.db import load_capolicies, parse_policy_details
 from CAPSlock.models import SignInContext, PolicyResult, UserContext
@@ -8,7 +9,9 @@ from CAPSlock.evaluator import evaluate_policy_detail
 
 
 def _get_user_by_upn(session, upn: str) -> Optional[User]:
-    return session.query(User).filter(User.userPrincipalName == upn).one_or_none()
+    return (
+        session.query(User).filter(func.lower(User.userPrincipalName) == upn.strip().lower()).one_or_none()
+    )
 
 def _build_user_context(session, user: User) -> UserContext:
     groups = (

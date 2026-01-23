@@ -19,7 +19,7 @@ def cmd_get_policies(args) -> int:
 
         results = get_policy_results_for_user(
             session=session,
-            user_upn=args.user,
+            user_upn=args.user.strip().lower(),
             signin_ctx=signin_ctx,
             mode="get-policies",
         )
@@ -57,7 +57,7 @@ def cmd_what_if(args) -> int:
 
         results = get_policy_results_for_user(
             session=session,
-            user_upn=args.user,
+            user_upn=args.user.strip().lower(),
             signin_ctx=signin_ctx,
             mode="what-if",
         )
