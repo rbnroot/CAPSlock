@@ -3,10 +3,10 @@ from typing import List, Set, Tuple, Any, Dict
 from CAPSlock.models import PolicyResult
 
 
-def _has_runtime_dependent_note(reason: str | None) -> bool:
+def _has_signal_dependent_note(reason: str | None) -> bool:
     if not reason:
         return False
-    return "Runtime-dependent:" in reason
+    return "Signal-dependent:" in reason
 
 
 def _cond_blocks(cond: dict, key: str) -> tuple[list, list]:
@@ -55,11 +55,13 @@ def render_conditions_summary(detail: dict) -> str:
     cond = detail.get("Conditions") or {}
     out = []
 
+    # Apps
     a_inc_b, a_exc_b = _cond_blocks(cond, "Applications")
     a_inc = _flatten_list(a_inc_b, "Applications")
     a_exc = _flatten_list(a_exc_b, "Applications")
     out += _format_inc_exc("Apps", a_inc, a_exc)
 
+    # Users, Groups, Roles
     u = cond.get("Users") or {}
     u_inc = u.get("Include") or []
     u_exc = u.get("Exclude") or []
@@ -95,31 +97,43 @@ def render_conditions_summary(detail: dict) -> str:
         if exc_roles:
             out.append(f"    Exclude Roles: {', '.join(exc_roles[:6])}{', ...' if len(exc_roles) > 6 else ''}")
 
+    # Locations
+    l_inc_b, l_exc_b = _cond_blocks(cond, "Locations")
+    l_inc = _flatten_list(l_inc_b, "Locations")
+    l_exc = _flatten_list(l_exc_b, "Locations")
+    out += _format_inc_exc("Locations", l_inc, l_exc)
+
+    # Device platform
     p_inc_b, p_exc_b = _cond_blocks(cond, "DevicePlatforms")
     p_inc = _flatten_list(p_inc_b, "DevicePlatforms")
     p_exc = _flatten_list(p_exc_b, "DevicePlatforms")
     out += _format_inc_exc("Device platform", p_inc, p_exc)
 
+    # Client app
     c_inc_b, c_exc_b = _cond_blocks(cond, "ClientTypes")
     c_inc = _flatten_list(c_inc_b, "ClientTypes")
     c_exc = _flatten_list(c_exc_b, "ClientTypes")
     out += _format_inc_exc("Client app", c_inc, c_exc)
 
+    # Sign-in risk
     s_inc_b, s_exc_b = _cond_blocks(cond, "SignInRisks")
     s_inc = _flatten_list(s_inc_b, "SignInRisks")
     s_exc = _flatten_list(s_exc_b, "SignInRisks")
     out += _format_inc_exc("Sign-in risk", s_inc, s_exc)
 
+    # User risk
     ur_inc_b, ur_exc_b = _cond_blocks(cond, "UserRisks")
     ur_inc = _flatten_list(ur_inc_b, "UserRisks")
     ur_exc = _flatten_list(ur_exc_b, "UserRisks")
     out += _format_inc_exc("User risk", ur_inc, ur_exc)
 
+    # Auth flow
     af_inc_b, af_exc_b = _cond_blocks(cond, "AuthFlows")
     af_inc = _flatten_list(af_inc_b, "AuthFlows")
     af_exc = _flatten_list(af_exc_b, "AuthFlows")
     out += _format_inc_exc("Auth flow", af_inc, af_exc)
 
+    # Device rules
     dev = cond.get("Devices") or {}
     rules = []
     for b in (dev.get("Include") or []):
@@ -136,8 +150,31 @@ def render_conditions_summary(detail: dict) -> str:
 
     if not out:
         return "  Conditions: (none)"
+
     return "\n".join(["  Conditions summary:"] + out)
 
+def _extract_location_sets(detail: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
+    locs = ((detail.get("Conditions", {}) or {}).get("Locations", {}) or {})
+    inc_blocks = locs.get("Include") or []
+    exc_blocks = locs.get("Exclude") or []
+
+    inc: Set[str] = set()
+    exc: Set[str] = set()
+
+    for blk in inc_blocks:
+        inc.update(blk.get("Locations", []) or [])
+
+    for blk in exc_blocks:
+        exc.update(blk.get("Locations", []) or [])
+
+    return inc, exc
+
+
+def _fmt_set(vals: Set[str]) -> str:
+    if not vals:
+        return "None"
+    items = sorted(vals)
+    return ", ".join(items)
 
 def print_full(r: PolicyResult, show_raw: bool = False):
     print(f"- {r.policy.displayName} ({r.policy.objectId})")
@@ -203,8 +240,8 @@ def print_sections_get_policies(results: List[PolicyResult], results_mode: str):
 
 def print_sections_what_if(results: List[PolicyResult], strict: bool):
     applied_all = [r for r in results if r.applies]
-    applied_def = [r for r in applied_all if not _has_runtime_dependent_note(r.applies_reason)]
-    applied_rt = [r for r in applied_all if _has_runtime_dependent_note(r.applies_reason)]
+    applied_def = [r for r in applied_all if not _has_signal_dependent_note(r.applies_reason)]
+    applied_rt = [r for r in applied_all if _has_signal_dependent_note(r.applies_reason)]
 
     print("\n=== Applied (definitive) ===\n")
     if applied_def:
@@ -216,7 +253,7 @@ def print_sections_what_if(results: List[PolicyResult], strict: bool):
     if strict:
         return
 
-    print("\n=== Applied (runtime-dependent) ===\n")
+    print("\n=== Applied (signal-dependent) ===\n")
     if applied_rt:
         for r in applied_rt:
             print_full(r)
