@@ -14,7 +14,7 @@ htmlcov/
 
 roadrecon*.db
 .roadtools_auth*
-caps
+caps.html
 .html
 *.json
 *.sqlite
