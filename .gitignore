@@ -12,8 +12,10 @@ ENV/
 .coverage
 htmlcov/
 
-roadrecon.db
-.roadtools_auth
+roadrecon*.db
+.roadtools_auth*
+caps
+.html
 *.json
 *.sqlite
 *.sqlite3
