@@ -5,7 +5,8 @@ from CAPSlock.models import SignInContext
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
 from CAPSlock.query import get_policy_results_for_user, convert_from_id, convert_from_name
 from CAPSlock.printers import print_sections_get_policies, print_sections_what_if
-
+from CAPSlock.analyze import analyze, write_outputs
+from CAPSlock.query import convert_from_id, convert_from_name
 
 def _add_common_user_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-u", "--user", required=True, help="User UPN")
@@ -81,8 +82,6 @@ def cmd_what_if(args) -> int:
     finally:
         session.close()
 
-from CAPSlock.query import convert_from_id, convert_from_name
-
 def cmd_convert(args) -> int:
     session = get_session(args.db)
     try:
@@ -93,6 +92,64 @@ def cmd_convert(args) -> int:
 
         for line in lines:
             print(line)
+
+        return 0
+    finally:
+        session.close()
+
+def cmd_analyze(args) -> int:
+    session = get_session(args.db)
+    try:
+        if args.resource and args.acr:
+            raise SystemExit("[!] Invalid scenario: --resource and --acr are mutually exclusive (choose one).")
+        if not args.resource and not args.acr:
+            raise SystemExit("[!] Invalid scenario: you must provide --resource or --acr.")
+
+        base = SignInContext(
+            app_id=normalize_unknown_str(args.resource),
+            acr=normalize_unknown_str(args.acr),
+            trusted_location=None,
+            platform=None,
+            client_app=None,
+            signin_risk=None,
+            user_risk=None,
+            auth_flow=None,
+            device_filter=None,
+            device_hybrid_joined=normalize_bool_str(getattr(args, "entra_joined", None)),
+            device_compliant=normalize_bool_str(getattr(args, "device_compliant", None)),
+        )
+
+        fixed = {
+            "trusted_location": normalize_bool_str(getattr(args, "trusted_location", None)),
+            "platform": (normalize_unknown_str(getattr(args, "platform", None)).lower() if normalize_unknown_str(getattr(args, "platform", None)) else None),
+            "client_app": normalize_unknown_str(getattr(args, "client_app", None)),
+            "signin_risk": (normalize_unknown_str(getattr(args, "signin_risk", None)).lower() if normalize_unknown_str(getattr(args, "signin_risk", None)) else None),
+            "user_risk": (normalize_unknown_str(getattr(args, "user_risk", None)).lower() if normalize_unknown_str(getattr(args, "user_risk", None)) else None),
+            "auth_flow": (normalize_unknown_str(getattr(args, "auth_flow", None)).lower() if normalize_unknown_str(getattr(args, "auth_flow", None)) else None),
+            "device_filter": normalize_bool_str(getattr(args, "device_filter", None)),
+        }
+
+        summary, gaps = analyze(
+            session=session,
+            user_upn=args.user,
+            base=base,
+            fixed=fixed,
+            max_scenarios=int(args.max_scenarios),
+        )
+
+        summary_path, gaps_path = write_outputs(summary, gaps, prefix=args.out)
+
+        print()
+        print("Analyze complete")
+        print("=" * 64)
+        print(f"Scenarios evaluated: {summary['scenarios_evaluated']}")
+        print("Gap counts:")
+        for k, v in summary["gap_counts"].items():
+            print(f"  {k}: {v}")
+        print()
+        print(f"Summary: {summary_path}")
+        print(f"Gaps:    {gaps_path}")
+        print()
 
         return 0
     finally:
@@ -143,6 +200,29 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("-id", "--id", dest="object_id", help="Object ID (GUID)")
     g.add_argument("-name", "--name", dest="friendly_name", help="Friendly name / UPN / displayName")
     p3.set_defaults(func=cmd_convert)
+
+    #Analyze parser
+    p4 = sub.add_parser("analyze", help="Permute sign-in scenarios and report Conditional Access gaps")
+    _add_common_user_args(p4)
+
+    p4.add_argument("--resource", default=None, help="Resource / cloud app / resource set")
+    p4.add_argument("--acr", default=None, help="User action / ACR (e.g. urn:user:registerdevice)")
+
+    p4.add_argument("--trusted-location", default=None, choices=["true", "false"], help="Trusted location flag (fixed if provided)")
+    p4.add_argument("--platform", default=None, choices=["windows", "macos", "linux", "ios", "android"], help="Device platform (fixed if provided)")
+    p4.add_argument("--client-app", default=None, choices=["browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"], help="Client app type (fixed if provided)")
+    p4.add_argument("--signin-risk", default=None, choices=["none", "low", "medium", "high"], help="Sign-in risk level (fixed if provided)")
+    p4.add_argument("--user-risk", default=None, choices=["low", "medium", "high"], help="User risk level (fixed if provided)")
+    p4.add_argument("--auth-flow", default=None, choices=["devicecodeflow", "authtransfer"], help="Authentication flow (fixed if provided)")
+    p4.add_argument("--device-filter", default=None, choices=["true", "false"], help="Device filter match flag (fixed if provided)")
+
+    p4.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Entra joined flag (accepted, not evaluated in MVP3)")
+    p4.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (accepted, not evaluated in MVP3)")
+
+    p4.add_argument("--max-scenarios", default="1000", help="Maximum scenarios to evaluate (default 1000)")
+    p4.add_argument("--out", default="capslock_analyze", help="Output file prefix (default capslock_analyze)")
+
+    p4.set_defaults(func=cmd_analyze)
 
     return parser
 
