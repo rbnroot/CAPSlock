@@ -26,7 +26,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 
-# Pydantic models for request/response
+
 class WhatIfRequest(BaseModel):
     user: str = Field(..., description="User Principal Name")
     resource: Optional[str] = Field(None, description="Resource/App ID")
@@ -72,7 +72,6 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    """Serve the main HTML page"""
     import os
     static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
     return FileResponse(static_path)
@@ -80,7 +79,6 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
     return {"status": "healthy", "service": "CAPSlock API"}
 
 
@@ -88,9 +86,7 @@ async def health_check():
 async def get_locations(
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
 ):
-    """
-    Get all named locations with trust status
-    """
+
     try:
         from CAPSlock.db import load_named_locations
         from roadtools.roadlib.metadef.database import Policy
@@ -104,7 +100,7 @@ async def get_locations(
         for loc in locations:
             is_trusted = location_trust_map.get(loc.objectId, False)
 
-            # Get additional info if available
+
             ip_ranges = []
             countries = []
             if loc.policyDetail:
@@ -142,9 +138,7 @@ async def get_locations(
 async def get_all_policies(
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
 ):
-    """
-    Get all Conditional Access policies in the tenant
-    """
+
     try:
         from CAPSlock.db import load_capolicies, parse_policy_details
 
@@ -181,9 +175,7 @@ async def get_policies(
     results: str = Query("applied", description="Results mode: applied, exclusions, or all"),
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
 ):
-    """
-    Get Conditional Access policies that apply to a user
-    """
+
     try:
         session = get_session(db_path)
         signin_ctx = SignInContext(app_id=app)
@@ -236,9 +228,7 @@ async def get_policies(
 
 @app.post("/api/what-if")
 async def what_if(request: WhatIfRequest):
-    """
-    Evaluate policies for a hypothetical sign-in scenario
-    """
+
     try:
         # Validate resource vs acr
         if request.resource and request.acr:
@@ -306,9 +296,7 @@ async def what_if(request: WhatIfRequest):
 
 @app.post("/api/analyze")
 async def analyze_gaps(request: AnalyzeRequest):
-    """
-    Analyze Conditional Access gaps by permuting sign-in scenarios
-    """
+    
     try:
         # Validate resource vs acr
         if request.resource and request.acr:
@@ -368,7 +356,7 @@ async def analyze_gaps(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Mount static files (after routes to avoid conflicts)
+
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
