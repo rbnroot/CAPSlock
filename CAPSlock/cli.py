@@ -53,7 +53,6 @@ def cmd_what_if(args) -> int:
             user_risk=(normalize_unknown_str(getattr(args, "user_risk", None)).lower() if normalize_unknown_str(getattr(args, "user_risk", None)) else None),
             auth_flow=(normalize_unknown_str(getattr(args, "auth_flow", None)).lower() if normalize_unknown_str(getattr(args, "auth_flow", None)) else None),
             device_filter=normalize_bool_str(getattr(args, "device_filter", None)),
-            # accepted but not evaluated yet
             device_hybrid_joined=normalize_bool_str(getattr(args, "entra_joined", None)),
             device_compliant=normalize_bool_str(getattr(args, "device_compliant", None)),
         )
@@ -68,15 +67,17 @@ def cmd_what_if(args) -> int:
         print(f"\nWhat-If policies for user: {args.user}")
         print("=" * 64)
         print("Scenario:")
-        print(f"  resource:         {signin_ctx.app_id}")
-        print(f"  acr:              {signin_ctx.acr}")
-        print(f"  trusted_location: {signin_ctx.trusted_location}")
-        print(f"  platform:         {signin_ctx.platform}")
-        print(f"  client_app:       {signin_ctx.client_app}")
-        print(f"  signin_risk:      {signin_ctx.signin_risk}")
-        print(f"  user_risk:        {signin_ctx.user_risk}")
-        print(f"  auth_flow:        {signin_ctx.auth_flow}")
-        print(f"  device_filter:    {signin_ctx.device_filter}")
+        print(f"  resource:            {signin_ctx.app_id}")
+        print(f"  acr:                 {signin_ctx.acr}")
+        print(f"  trusted_location:    {signin_ctx.trusted_location}")
+        print(f"  platform:            {signin_ctx.platform}")
+        print(f"  client_app:          {signin_ctx.client_app}")
+        print(f"  signin_risk:         {signin_ctx.signin_risk}")
+        print(f"  user_risk:           {signin_ctx.user_risk}")
+        print(f"  auth_flow:           {signin_ctx.auth_flow}")
+        print(f"  device_filter:       {signin_ctx.device_filter}")
+        print(f"  device_compliant:    {signin_ctx.device_compliant}")
+        print(f"  device_hybrid_joined: {signin_ctx.device_hybrid_joined}")
         print()
 
         print_sections_what_if(results, strict=bool(getattr(args, "strict", False)))
@@ -95,6 +96,60 @@ def cmd_convert(args) -> int:
         for line in lines:
             print(line)
 
+        return 0
+    finally:
+        session.close()
+
+
+def cmd_list_locations(args) -> int:
+    from CAPSlock.db import load_named_locations
+    from roadtools.roadlib.metadef.database import Policy
+    import json
+
+    session = get_session(args.db)
+    try:
+        location_trust_map = load_named_locations(session)
+
+        locations = session.query(Policy).filter(Policy.policyType == 6).all()
+
+        if not locations:
+            print("No named locations found in database.")
+            return 0
+
+        print(f"\nNamed Locations ({len(locations)} total)")
+        print("=" * 80)
+
+        locations_sorted = sorted(locations, key=lambda x: (x.displayName or "").lower())
+
+        for loc in locations_sorted:
+            is_trusted = location_trust_map.get(loc.objectId, False)
+            trust_label = "[TRUSTED]" if is_trusted else "[NOT TRUSTED]"
+
+            ip_ranges = []
+            countries = []
+            if loc.policyDetail:
+                for detail_raw in loc.policyDetail:
+                    try:
+                        detail = json.loads(detail_raw)
+                        if detail.get("IpRanges"):
+                            ip_ranges = detail["IpRanges"]
+                        if detail.get("CountriesAndRegions"):
+                            countries = detail["CountriesAndRegions"]
+                    except:
+                        pass
+
+            print(f"\n{loc.displayName}")
+            print(f"  ID:     {loc.objectId}")
+            print(f"  Status: {trust_label}")
+
+            if ip_ranges:
+                print(f"  Type:   IP-based ({len(ip_ranges)} range{'s' if len(ip_ranges) != 1 else ''})")
+            elif countries:
+                print(f"  Type:   Country-based ({len(countries)} countr{'ies' if len(countries) != 1 else 'y'})")
+            else:
+                print(f"  Type:   Unknown")
+
+        print()
         return 0
     finally:
         session.close()
@@ -166,7 +221,6 @@ def cmd_web_gui(args) -> int:
         print("    pip install -r web-gui/requirements.txt")
         return 1
 
-    # Get the path to the web-gui/api.py file
     current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     web_gui_dir = os.path.join(current_dir, "web-gui")
 
@@ -174,7 +228,6 @@ def cmd_web_gui(args) -> int:
         print(f"[!] Web GUI not found at {web_gui_dir}")
         return 1
 
-    # Add web-gui directory to Python path so uvicorn can import the api module
     sys.path.insert(0, web_gui_dir)
 
     print("=" * 64)
@@ -186,7 +239,6 @@ def cmd_web_gui(args) -> int:
     print("=" * 64)
     print()
 
-    # Run uvicorn
     uvicorn.run(
         "api:app",
         host=args.host,
@@ -226,9 +278,8 @@ def build_parser() -> argparse.ArgumentParser:
     p2.add_argument("--auth-flow", default=None, choices=["devicecodeflow", "authtransfer"], help="Authentication flow (optional)")
     p2.add_argument("--device-filter", default=None, choices=["true", "false"], help="Device filter match flag (optional)")
 
-    # Come back later to implement
-    p2.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Entra joined flag (accepted, not evaluated in MVP2)")
-    p2.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (accepted, not evaluated in MVP2)")
+    p2.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Device Entra/Hybrid Azure AD joined flag (optional)")
+    p2.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (optional)")
 
     p2.add_argument("--strict", action="store_true", help="Only show policies that definitively apply (hide runtime-dependent policies)")
     p2.set_defaults(func=cmd_what_if)
@@ -241,6 +292,11 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("-id", "--id", dest="object_id", help="Object ID (GUID)")
     g.add_argument("-name", "--name", dest="friendly_name", help="Friendly name / UPN / displayName")
     p3.set_defaults(func=cmd_convert)
+
+    # List-locations parser
+    p3b = sub.add_parser("list-locations", help="List all named locations with trust status")
+    p3b.add_argument("--db", default=DB_PATH, help="Path to roadrecon.db (default: roadrecon.db)")
+    p3b.set_defaults(func=cmd_list_locations)
 
     #Analyze parser
     p4 = sub.add_parser("analyze", help="Permute sign-in scenarios and report Conditional Access gaps")
@@ -257,8 +313,8 @@ def build_parser() -> argparse.ArgumentParser:
     p4.add_argument("--auth-flow", default=None, choices=["devicecodeflow", "authtransfer"], help="Authentication flow (fixed if provided)")
     p4.add_argument("--device-filter", default=None, choices=["true", "false"], help="Device filter match flag (fixed if provided)")
 
-    p4.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Entra joined flag (accepted, not evaluated in MVP3)")
-    p4.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (accepted, not evaluated in MVP3)")
+    p4.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Device Entra/Hybrid Azure AD joined flag (fixed if provided)")
+    p4.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (fixed if provided)")
 
     p4.add_argument("--max-scenarios", default="1000", help="Maximum scenarios to evaluate (default 1000)")
     p4.add_argument("--out", default="capslock_analyze", help="Output file prefix (default capslock_analyze)")

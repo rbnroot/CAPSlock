@@ -88,6 +88,60 @@ async def health_check():
     return {"status": "healthy", "service": "CAPSlock API"}
 
 
+@app.get("/api/locations")
+async def get_locations(
+    db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
+):
+    """
+    Get all named locations with trust status
+    """
+    try:
+        from CAPSlock.db import load_named_locations
+        from roadtools.roadlib.metadef.database import Policy
+        import json
+
+        session = get_session(db_path)
+        location_trust_map = load_named_locations(session)
+        locations = session.query(Policy).filter(Policy.policyType == 6).all()
+
+        result = []
+        for loc in locations:
+            is_trusted = location_trust_map.get(loc.objectId, False)
+
+            # Get additional info if available
+            ip_ranges = []
+            countries = []
+            if loc.policyDetail:
+                for detail_raw in loc.policyDetail:
+                    try:
+                        detail = json.loads(detail_raw)
+                        if detail.get("IpRanges"):
+                            ip_ranges = detail["IpRanges"]
+                        if detail.get("CountriesAndRegions"):
+                            countries = detail["CountriesAndRegions"]
+                    except:
+                        pass
+
+            location_type = "Unknown"
+            if ip_ranges:
+                location_type = f"IP-based ({len(ip_ranges)} range{'s' if len(ip_ranges) != 1 else ''})"
+            elif countries:
+                location_type = f"Country-based ({len(countries)} countr{'ies' if len(countries) != 1 else 'y'})"
+
+            result.append({
+                "name": loc.displayName,
+                "id": loc.objectId,
+                "is_trusted": is_trusted,
+                "type": location_type,
+            })
+
+        session.close()
+        return {"locations": sorted(result, key=lambda x: x["name"].lower())}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/all-policies")
 async def get_all_policies(
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
