@@ -1,7 +1,3 @@
-"""
-CAPSlock Web API
-FastAPI backend for CAPSlock Conditional Access analysis tool
-"""
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Query
