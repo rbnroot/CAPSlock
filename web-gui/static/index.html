@@ -500,6 +500,7 @@
                 <a class="nav-item" onclick="switchPage('what-if')">What-If Analysis</a>
                 <a class="nav-item" onclick="switchPage('analyze')">Analyze Gaps</a>
                 <a class="nav-item" onclick="switchPage('all-policies')">All Policies</a>
+                <a class="nav-item" onclick="switchPage('locations')">Locations</a>
             </nav>
             <div class="settings-toggle" onclick="toggleSettings()">Settings</div>
         </div>
@@ -826,6 +827,23 @@
                 </div>
 
                 <div id="ap-results" class="results"></div>
+            </div>
+
+            <!-- Locations Page -->
+            <div id="locations" class="page">
+                <div class="page-header">
+                    <h2>Named Locations</h2>
+                    <p>View all named locations and their trust status</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <button onclick="loadLocations()" class="btn btn-primary">Load Locations</button>
+                        <p style="margin-top: 12px; color: #666; font-size: 0.9em;">This will retrieve all named locations from the database</p>
+                    </div>
+                </div>
+
+                <div id="loc-results" class="results"></div>
             </div>
         </div>
     </div>
@@ -1451,6 +1469,62 @@
             } catch (error) {
                 resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
             }
+        }
+
+        async function loadLocations() {
+            const resultsDiv = document.getElementById('loc-results');
+            resultsDiv.innerHTML = '<div class="loading">Loading locations...</div>';
+            resultsDiv.classList.add('show');
+
+            try {
+                const params = new URLSearchParams({ db_path: dbPath });
+                const response = await fetch(`/api/locations?${params}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to fetch locations');
+                }
+
+                displayLocations(data);
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayLocations(data) {
+            const resultsDiv = document.getElementById('loc-results');
+            const locations = data.locations || [];
+
+            if (locations.length === 0) {
+                resultsDiv.innerHTML = '<div class="info">No named locations found in database.</div>';
+                return;
+            }
+
+            let html = '<div class="card"><div class="card-body">';
+            html += `<h3>Named Locations (${locations.length} total)</h3>`;
+            html += '<div style="margin-top: 20px;">';
+
+            locations.forEach(loc => {
+                const trustBadge = loc.is_trusted
+                    ? '<span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold;">TRUSTED</span>'
+                    : '<span style="background: #6c757d; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold;">NOT TRUSTED</span>';
+
+                html += `
+                    <div style="border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-bottom: 12px; background: #f8f9fa;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <strong style="font-size: 1.1em;">${loc.name}</strong>
+                            ${trustBadge}
+                        </div>
+                        <div style="font-size: 0.9em; color: #666;">
+                            <div style="margin-bottom: 4px;"><strong>ID:</strong> <code>${loc.id}</code></div>
+                            <div><strong>Type:</strong> ${loc.type}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div></div></div>';
+            resultsDiv.innerHTML = html;
         }
 
         let allPoliciesData = null;

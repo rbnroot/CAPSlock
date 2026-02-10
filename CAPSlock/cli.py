@@ -100,6 +100,60 @@ def cmd_convert(args) -> int:
     finally:
         session.close()
 
+
+def cmd_list_locations(args) -> int:
+    from CAPSlock.db import load_named_locations
+    from roadtools.roadlib.metadef.database import Policy
+    import json
+
+    session = get_session(args.db)
+    try:
+        location_trust_map = load_named_locations(session)
+
+        locations = session.query(Policy).filter(Policy.policyType == 6).all()
+
+        if not locations:
+            print("No named locations found in database.")
+            return 0
+
+        print(f"\nNamed Locations ({len(locations)} total)")
+        print("=" * 80)
+
+        locations_sorted = sorted(locations, key=lambda x: (x.displayName or "").lower())
+
+        for loc in locations_sorted:
+            is_trusted = location_trust_map.get(loc.objectId, False)
+            trust_label = "[TRUSTED]" if is_trusted else "[NOT TRUSTED]"
+
+            ip_ranges = []
+            countries = []
+            if loc.policyDetail:
+                for detail_raw in loc.policyDetail:
+                    try:
+                        detail = json.loads(detail_raw)
+                        if detail.get("IpRanges"):
+                            ip_ranges = detail["IpRanges"]
+                        if detail.get("CountriesAndRegions"):
+                            countries = detail["CountriesAndRegions"]
+                    except:
+                        pass
+
+            print(f"\n{loc.displayName}")
+            print(f"  ID:     {loc.objectId}")
+            print(f"  Status: {trust_label}")
+
+            if ip_ranges:
+                print(f"  Type:   IP-based ({len(ip_ranges)} range{'s' if len(ip_ranges) != 1 else ''})")
+            elif countries:
+                print(f"  Type:   Country-based ({len(countries)} countr{'ies' if len(countries) != 1 else 'y'})")
+            else:
+                print(f"  Type:   Unknown")
+
+        print()
+        return 0
+    finally:
+        session.close()
+
 def cmd_analyze(args) -> int:
     session = get_session(args.db)
     try:
@@ -238,6 +292,11 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("-id", "--id", dest="object_id", help="Object ID (GUID)")
     g.add_argument("-name", "--name", dest="friendly_name", help="Friendly name / UPN / displayName")
     p3.set_defaults(func=cmd_convert)
+
+    # List-locations parser
+    p3b = sub.add_parser("list-locations", help="List all named locations with trust status")
+    p3b.add_argument("--db", default=DB_PATH, help="Path to roadrecon.db (default: roadrecon.db)")
+    p3b.set_defaults(func=cmd_list_locations)
 
     #Analyze parser
     p4 = sub.add_parser("analyze", help="Permute sign-in scenarios and report Conditional Access gaps")
