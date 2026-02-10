@@ -1,0 +1,10 @@
+# Web API dependencies for CAPSlock
+# Install with: pip install -r requirements-web.txt
+
+# Core dependencies (also install requirements.txt first)
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+
+# CORS support
+python-multipart==0.0.12

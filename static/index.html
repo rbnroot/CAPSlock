@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAPSlock - Conditional Access Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            padding: 24px 20px;
+            border-bottom: 1px solid #333;
+        }
+
+        .logo h1 {
+            font-size: 1.4em;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .logo p {
+            font-size: 0.75em;
+            color: #888;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav {
+            flex: 1;
+            padding: 8px 0;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 12px 20px;
+            color: #aaa;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            font-size: 0.9em;
+        }
+
+        .nav-item:hover {
+            background: #252525;
+            color: #fff;
+        }
+
+        .nav-item.active {
+            background: #252525;
+            color: #fff;
+            border-left-color: #0078d4;
+        }
+
+        .settings-toggle {
+            padding: 12px 20px;
+            color: #aaa;
+            cursor: pointer;
+            border-top: 1px solid #333;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .settings-toggle:hover {
+            background: #252525;
+            color: #fff;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 32px 40px;
+            overflow-y: auto;
+        }
+
+        .page {
+            display: none;
+            max-width: 1200px;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-header h2 {
+            font-size: 1.8em;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .page-header p {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #ddd;
+            background: #fafafa;
+        }
+
+        .card-header h3 {
+            font-size: 1em;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .card-body {
+            padding: 24px 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.9em;
+            color: #333;
+        }
+
+        .form-group small {
+            color: #888;
+            font-weight: 400;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            font-size: 0.9em;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #0078d4;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            font-size: 0.9em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: #0078d4;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #006abc;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .results {
+            margin-top: 24px;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .results-header h3 {
+            font-size: 1.2em;
+            color: #1a1a1a;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: #0078d4;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-card.active {
+            border-color: #0078d4;
+            background: #e8f4f8;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: 600;
+            color: #0078d4;
+            line-height: 1;
+        }
+
+        .stat-label {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .policy-list {
+            margin-top: 16px;
+        }
+
+        .policy-item {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-left: 3px solid #0078d4;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .policy-item.block {
+            border-left-color: #d13438;
+        }
+
+        .policy-item.grant {
+            border-left-color: #107c10;
+        }
+
+        .policy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+
+        .policy-name {
+            font-weight: 600;
+            color: #1a1a1a;
+            font-size: 0.95em;
+        }
+
+        .policy-id {
+            font-size: 0.8em;
+            color: #888;
+            font-family: 'Courier New', monospace;
+        }
+
+        .policy-meta {
+            display: flex;
+            gap: 16px;
+            margin: 8px 0;
+            font-size: 0.85em;
+        }
+
+        .policy-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .policy-meta-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .policy-meta-value {
+            color: #1a1a1a;
+        }
+
+        .policy-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 8px 0;
+        }
+
+        .control-tag {
+            padding: 4px 10px;
+            background: #e8e8e8;
+            color: #333;
+            font-size: 0.8em;
+            border: 1px solid #ccc;
+        }
+
+        .policy-reason {
+            margin-top: 8px;
+            padding: 12px;
+            background: #f9f9f9;
+            border-left: 2px solid #ddd;
+            font-size: 0.85em;
+            color: #444;
+        }
+
+        .scenario-box {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .scenario-box h4 {
+            font-size: 0.95em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+        }
+
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+        }
+
+        .scenario-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85em;
+            padding: 4px 0;
+        }
+
+        .scenario-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .scenario-value {
+            color: #1a1a1a;
+            font-family: 'Courier New', monospace;
+        }
+
+        .loading {
+            padding: 40px;
+            text-align: center;
+            color: #666;
+        }
+
+        .error {
+            background: #fef0f0;
+            border: 1px solid #d13438;
+            color: #d13438;
+            padding: 16px;
+            margin: 16px 0;
+            font-size: 0.9em;
+        }
+
+        .alert {
+            padding: 16px;
+            margin-bottom: 24px;
+            border: 1px solid #ddd;
+            font-size: 0.9em;
+        }
+
+        .alert-info {
+            background: #e8f4f8;
+            border-color: #0078d4;
+            color: #004578;
+        }
+
+        .alert-success {
+            background: #dff6dd;
+            border-color: #107c10;
+            color: #0e5a0e;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid #333;
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 24px 20px;
+        }
+
+        .empty-state {
+            padding: 60px 20px;
+            text-align: center;
+            color: #888;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="logo">
+                <h1>CAPSlock</h1>
+                <p>CA Policy Analysis</p>
+            </div>
+            <nav class="nav">
+                <a class="nav-item active" onclick="switchPage('get-policies')">Get Policies</a>
+                <a class="nav-item" onclick="switchPage('what-if')">What-If Analysis</a>
+                <a class="nav-item" onclick="switchPage('analyze')">Analyze Gaps</a>
+                <a class="nav-item" onclick="switchPage('all-policies')">All Policies</a>
+            </nav>
+            <div class="settings-toggle" onclick="toggleSettings()">Settings</div>
+        </div>
+
+        <div class="main-content">
+            <!-- Get Policies Page -->
+            <div id="get-policies" class="page active">
+                <div class="page-header">
+                    <h2>Get Policies</h2>
+                    <p>List all Conditional Access policies that target a specific user</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Query Parameters</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="getPoliciesForm" onsubmit="getPolicies(event)">
+                            <div class="form-group">
+                                <label for="gp-user">User Principal Name <small>(required)</small></label>
+                                <input type="text" id="gp-user" class="form-control" placeholder="user@domain.com" required>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="gp-app">Application ID <small>(optional)</small></label>
+                                    <input type="text" id="gp-app" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="gp-results-mode">Results Mode</label>
+                                    <select id="gp-results-mode" class="form-control">
+                                        <option value="applied">Applied Only</option>
+                                        <option value="exclusions">Exclusions Only</option>
+                                        <option value="all">All</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Execute Query</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="gp-results" class="results"></div>
+            </div>
+
+            <!-- What-If Page -->
+            <div id="what-if" class="page">
+                <div class="page-header">
+                    <h2>What-If Analysis</h2>
+                    <p>Evaluate policies for a hypothetical sign-in scenario</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Scenario Configuration</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="whatIfForm" onsubmit="whatIf(event)">
+                            <div class="form-group">
+                                <label for="wi-user">User Principal Name <small>(required)</small></label>
+                                <input type="text" id="wi-user" class="form-control" placeholder="user@domain.com" required>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="wi-resource">Resource / App ID</label>
+                                    <input type="text" id="wi-resource" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="wi-acr">ACR / User Action</label>
+                                    <input type="text" id="wi-acr" class="form-control" placeholder="urn:user:registerdevice">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="wi-platform">Platform</label>
+                                    <select id="wi-platform" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="windows">Windows</option>
+                                        <option value="macos">macOS</option>
+                                        <option value="linux">Linux</option>
+                                        <option value="ios">iOS</option>
+                                        <option value="android">Android</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="wi-client-app">Client App Type</label>
+                                    <select id="wi-client-app" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="browser">Browser</option>
+                                        <option value="mobileAppsAndDesktopClients">Mobile/Desktop Clients</option>
+                                        <option value="exchangeActiveSync">Exchange ActiveSync</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="wi-trusted-location">Trusted Location</label>
+                                    <select id="wi-trusted-location" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="wi-signin-risk">Sign-in Risk</label>
+                                    <select id="wi-signin-risk" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="none">None</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="wi-user-risk">User Risk</label>
+                                    <select id="wi-user-risk" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="wi-auth-flow">Auth Flow</label>
+                                    <select id="wi-auth-flow" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="devicecodeflow">Device Code Flow</option>
+                                        <option value="authtransfer">Auth Transfer</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Run Analysis</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="wi-results" class="results"></div>
+            </div>
+
+            <!-- Analyze Page -->
+            <div id="analyze" class="page">
+                <div class="page-header">
+                    <h2>Analyze Gaps</h2>
+                    <p>Systematically search for CA enforcement gaps by permuting sign-in scenarios</p>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Note:</strong> This analysis generates multiple scenarios. Any parameters left unspecified will be automatically permuted.
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Analysis Configuration</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="analyzeForm" onsubmit="analyzeGaps(event)">
+                            <div class="form-group">
+                                <label for="an-user">User Principal Name <small>(required)</small></label>
+                                <input type="text" id="an-user" class="form-control" placeholder="user@domain.com" required>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="an-resource">Resource / App ID</label>
+                                    <input type="text" id="an-resource" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-acr">ACR / User Action</label>
+                                    <input type="text" id="an-acr" class="form-control" placeholder="urn:user:registerdevice">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="an-max-scenarios">Max Scenarios</label>
+                                    <input type="number" id="an-max-scenarios" class="form-control" value="1000" min="1" max="10000">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-platform">Fixed Platform <small>(optional)</small></label>
+                                    <select id="an-platform" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="windows">Windows</option>
+                                        <option value="macos">macOS</option>
+                                        <option value="linux">Linux</option>
+                                        <option value="ios">iOS</option>
+                                        <option value="android">Android</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="an-trusted-location">Fixed Trusted Location <small>(optional)</small></label>
+                                    <select id="an-trusted-location" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-client-app">Fixed Client App <small>(optional)</small></label>
+                                    <select id="an-client-app" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="browser">Browser</option>
+                                        <option value="mobileAppsAndDesktopClients">Mobile/Desktop Clients</option>
+                                        <option value="exchangeActiveSync">Exchange ActiveSync</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Start Analysis</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="an-results" class="results"></div>
+            </div>
+
+            <!-- All Policies Page -->
+            <div id="all-policies" class="page">
+                <div class="page-header">
+                    <h2>All Policies</h2>
+                    <p>View all Conditional Access policies in the tenant</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <button onclick="loadAllPolicies()" class="btn btn-primary">Load All Policies</button>
+                        <p style="margin-top: 12px; color: #666; font-size: 0.9em;">This will retrieve all CA policies from the database</p>
+                    </div>
+                </div>
+
+                <div id="ap-results" class="results"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="modal-close" onclick="toggleSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="db-path">Database Path</label>
+                    <input type="text" id="db-path" class="form-control" placeholder="roadrecon.db" value="roadrecon.db">
+                    <small style="display: block; margin-top: 8px; color: #666;">
+                        Relative or absolute path to the roadrecon.db file
+                    </small>
+                </div>
+                <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dbPath = 'roadrecon.db';
+
+        function switchPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+
+            document.getElementById(pageId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function toggleSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.toggle('show');
+        }
+
+        function saveSettings() {
+            dbPath = document.getElementById('db-path').value || 'roadrecon.db';
+            toggleSettings();
+            alert('Settings saved');
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            console.log('Toggle section:', sectionId, 'found:', !!section); // Debug
+            if (section) {
+                // Check both inline style and computed style
+                const isHidden = section.style.display === 'none' ||
+                                window.getComputedStyle(section).display === 'none';
+                section.style.display = isHidden ? 'block' : 'none';
+                console.log('Toggled to:', section.style.display); // Debug
+            } else {
+                console.error('Section not found:', sectionId);
+            }
+        }
+
+        async function getPolicies(event) {
+            event.preventDefault();
+            const resultsDiv = document.getElementById('gp-results');
+            resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
+            resultsDiv.classList.add('show');
+
+            const user = document.getElementById('gp-user').value;
+            const app = document.getElementById('gp-app').value;
+            const results = document.getElementById('gp-results-mode').value;
+
+            try {
+                const params = new URLSearchParams({ user, results, db_path: dbPath });
+                if (app) params.append('app', app);
+
+                const response = await fetch(`/api/policies?${params}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to fetch policies');
+                }
+
+                displayGetPoliciesResults(data);
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayGetPoliciesResults(data) {
+            getPoliciesData = data;
+            currentGetPoliciesFilter = 'all';
+            currentGetPoliciesPage = 1;
+            renderGetPolicies();
+        }
+
+        function filterGetPolicies(filter) {
+            currentGetPoliciesFilter = filter;
+            currentGetPoliciesPage = 1;
+            renderGetPolicies();
+        }
+
+        function renderGetPolicies() {
+            if (!getPoliciesData) return;
+
+            const data = getPoliciesData;
+            const resultsDiv = document.getElementById('gp-results');
+            let html = '<div class="results-header"><h3>Results</h3></div>';
+
+            if (data.results_mode === 'all') {
+                html += '<p style="color: #888; font-size: 0.85em; margin-bottom: 12px;">Click on a card to filter policies</p>';
+
+                html += '<div class="stats-grid">';
+                html += `<div class="stat-card ${currentGetPoliciesFilter === 'all' ? 'active' : ''}" onclick="filterGetPolicies('all')" style="cursor: pointer;">
+                    <div class="stat-number">${data.counts.applied + data.counts.excluded + data.counts.not_included}</div>
+                    <div class="stat-label">All</div>
+                </div>`;
+                html += `<div class="stat-card ${currentGetPoliciesFilter === 'applied' ? 'active' : ''}" onclick="filterGetPolicies('applied')" style="cursor: pointer;">
+                    <div class="stat-number">${data.counts.applied}</div>
+                    <div class="stat-label">Applied</div>
+                </div>`;
+                html += `<div class="stat-card ${currentGetPoliciesFilter === 'excluded' ? 'active' : ''}" onclick="filterGetPolicies('excluded')" style="cursor: pointer;">
+                    <div class="stat-number">${data.counts.excluded}</div>
+                    <div class="stat-label">Excluded</div>
+                </div>`;
+                html += `<div class="stat-card ${currentGetPoliciesFilter === 'not_included' ? 'active' : ''}" onclick="filterGetPolicies('not_included')" style="cursor: pointer;">
+                    <div class="stat-number">${data.counts.not_included}</div>
+                    <div class="stat-label">Not Included</div>
+                </div>`;
+                html += '</div>';
+
+                // Get filtered policies
+                let filteredPolicies = [];
+                let sectionTitle = 'All Policies';
+
+                if (currentGetPoliciesFilter === 'all') {
+                    filteredPolicies = [...(data.applied || []), ...(data.excluded || []), ...(data.not_included || [])];
+                    sectionTitle = 'All Policies';
+                } else if (currentGetPoliciesFilter === 'applied') {
+                    filteredPolicies = data.applied || [];
+                    sectionTitle = 'Applied Policies';
+                } else if (currentGetPoliciesFilter === 'excluded') {
+                    filteredPolicies = data.excluded || [];
+                    sectionTitle = 'Excluded Policies';
+                } else if (currentGetPoliciesFilter === 'not_included') {
+                    filteredPolicies = data.not_included || [];
+                    sectionTitle = 'Not Included Policies';
+                }
+
+                if (filteredPolicies.length > 0) {
+                    const totalPages = Math.ceil(filteredPolicies.length / policiesPerPage);
+                    const startIdx = (currentGetPoliciesPage - 1) * policiesPerPage;
+                    const endIdx = Math.min(startIdx + policiesPerPage, filteredPolicies.length);
+                    const currentPagePolicies = filteredPolicies.slice(startIdx, endIdx);
+
+                    html += `<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">${sectionTitle} (${filteredPolicies.length})</h4>`;
+
+                    // Pagination controls at top
+                    if (totalPages > 1) {
+                        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px; background: #f9f9f9; border: 1px solid #ddd;">';
+                        html += `<div style="color: #666; font-size: 0.9em;">Showing ${startIdx + 1}-${endIdx} of ${filteredPolicies.length} policies (Page ${currentGetPoliciesPage} of ${totalPages})</div>`;
+                        html += '<div style="display: flex; align-items: center; gap: 8px;">';
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage - 1})" ${currentGetPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                        html += `<input type="number" id="gp-page-input-top" min="1" max="${totalPages}" value="${currentGetPoliciesPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToGetPoliciesPage('gp-page-input-top', ${totalPages})">`;
+                        html += `<button class="btn btn-primary" onclick="goToGetPoliciesPage('gp-page-input-top', ${totalPages})">Go</button>`;
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage + 1})" ${currentGetPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                        html += '</div></div>';
+                    }
+
+                    html += renderPolicies(currentPagePolicies);
+
+                    // Pagination controls at bottom
+                    if (totalPages > 1) {
+                        html += '<div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding: 12px;">';
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage - 1})" ${currentGetPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                        html += `<span style="color: #666;">Page</span>`;
+                        html += `<input type="number" id="gp-page-input-bottom" min="1" max="${totalPages}" value="${currentGetPoliciesPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToGetPoliciesPage('gp-page-input-bottom', ${totalPages})">`;
+                        html += `<span style="color: #666;">of ${totalPages}</span>`;
+                        html += `<button class="btn btn-primary" onclick="goToGetPoliciesPage('gp-page-input-bottom', ${totalPages})">Go</button>`;
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage + 1})" ${currentGetPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                        html += '</div>';
+                    }
+                } else {
+                    html += '<div class="empty-state">No policies found for this filter</div>';
+                }
+            } else {
+                html += '<div class="stats-grid">';
+                html += `<div class="stat-card"><div class="stat-number">${data.count}</div><div class="stat-label">Policies</div></div>`;
+                html += '</div>';
+
+                const policies = data.policies || [];
+                if (policies.length > 0) {
+                    const totalPages = Math.ceil(policies.length / policiesPerPage);
+                    const startIdx = (currentGetPoliciesPage - 1) * policiesPerPage;
+                    const endIdx = Math.min(startIdx + policiesPerPage, policies.length);
+                    const currentPagePolicies = policies.slice(startIdx, endIdx);
+
+                    // Pagination controls at top
+                    if (totalPages > 1) {
+                        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px; background: #f9f9f9; border: 1px solid #ddd;">';
+                        html += `<div style="color: #666; font-size: 0.9em;">Showing ${startIdx + 1}-${endIdx} of ${policies.length} policies (Page ${currentGetPoliciesPage} of ${totalPages})</div>`;
+                        html += '<div style="display: flex; align-items: center; gap: 8px;">';
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage - 1})" ${currentGetPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                        html += `<input type="number" id="gp-page-input-top" min="1" max="${totalPages}" value="${currentGetPoliciesPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToGetPoliciesPage('gp-page-input-top', ${totalPages})">`;
+                        html += `<button class="btn btn-primary" onclick="goToGetPoliciesPage('gp-page-input-top', ${totalPages})">Go</button>`;
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage + 1})" ${currentGetPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                        html += '</div></div>';
+                    }
+
+                    html += renderPolicies(currentPagePolicies);
+
+                    // Pagination controls at bottom
+                    if (totalPages > 1) {
+                        html += '<div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding: 12px;">';
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage - 1})" ${currentGetPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                        html += `<span style="color: #666;">Page</span>`;
+                        html += `<input type="number" id="gp-page-input-bottom" min="1" max="${totalPages}" value="${currentGetPoliciesPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToGetPoliciesPage('gp-page-input-bottom', ${totalPages})">`;
+                        html += `<span style="color: #666;">of ${totalPages}</span>`;
+                        html += `<button class="btn btn-primary" onclick="goToGetPoliciesPage('gp-page-input-bottom', ${totalPages})">Go</button>`;
+                        html += `<button class="btn btn-primary" onclick="changeGetPoliciesPage(${currentGetPoliciesPage + 1})" ${currentGetPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                        html += '</div>';
+                    }
+                } else {
+                    html += renderPolicies(policies);
+                }
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function changeGetPoliciesPage(newPage) {
+            if (!getPoliciesData) return;
+            const data = getPoliciesData;
+            let totalPolicies;
+
+            if (data.results_mode === 'all') {
+                let filteredPolicies = [];
+                if (currentGetPoliciesFilter === 'all') {
+                    filteredPolicies = [...(data.applied || []), ...(data.excluded || []), ...(data.not_included || [])];
+                } else if (currentGetPoliciesFilter === 'applied') {
+                    filteredPolicies = data.applied || [];
+                } else if (currentGetPoliciesFilter === 'excluded') {
+                    filteredPolicies = data.excluded || [];
+                } else if (currentGetPoliciesFilter === 'not_included') {
+                    filteredPolicies = data.not_included || [];
+                }
+                totalPolicies = filteredPolicies.length;
+            } else {
+                totalPolicies = (data.policies || []).length;
+            }
+
+            const totalPages = Math.ceil(totalPolicies / policiesPerPage);
+            if (newPage < 1 || newPage > totalPages) return;
+            currentGetPoliciesPage = newPage;
+            renderGetPolicies();
+            document.getElementById('gp-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function goToGetPoliciesPage(inputId, totalPages) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            const pageNum = parseInt(input.value);
+            if (isNaN(pageNum)) {
+                alert('Please enter a valid page number');
+                return;
+            }
+
+            if (pageNum < 1 || pageNum > totalPages) {
+                alert(`Page number must be between 1 and ${totalPages}`);
+                return;
+            }
+
+            changeGetPoliciesPage(pageNum);
+        }
+
+        async function whatIf(event) {
+            event.preventDefault();
+            const resultsDiv = document.getElementById('wi-results');
+            resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
+            resultsDiv.classList.add('show');
+
+            const requestBody = {
+                user: document.getElementById('wi-user').value,
+                resource: document.getElementById('wi-resource').value || null,
+                acr: document.getElementById('wi-acr').value || null,
+                platform: document.getElementById('wi-platform').value || null,
+                client_app: document.getElementById('wi-client-app').value || null,
+                trusted_location: document.getElementById('wi-trusted-location').value ?
+                    document.getElementById('wi-trusted-location').value === 'true' : null,
+                signin_risk: document.getElementById('wi-signin-risk').value || null,
+                user_risk: document.getElementById('wi-user-risk').value || null,
+                auth_flow: document.getElementById('wi-auth-flow').value || null,
+                db_path: dbPath
+            };
+
+            try {
+                const response = await fetch('/api/what-if', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to run what-if analysis');
+                }
+
+                displayWhatIfResults(data);
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayWhatIfResults(data) {
+            whatIfData = data;
+            currentWhatIfPage = 1;
+            renderWhatIf();
+        }
+
+        function renderWhatIf() {
+            if (!whatIfData) return;
+
+            const data = whatIfData;
+            const resultsDiv = document.getElementById('wi-results');
+            let html = '<div class="results-header"><h3>Analysis Results</h3></div>';
+
+            html += '<div class="scenario-box"><h4>Scenario Parameters</h4><div class="scenario-grid">';
+            for (const [key, value] of Object.entries(data.scenario)) {
+                if (value !== null) {
+                    html += `<div class="scenario-item"><span class="scenario-label">${key}:</span><span class="scenario-value">${value}</span></div>`;
+                }
+            }
+            html += '</div></div>';
+
+            html += '<div class="stats-grid">';
+            html += `<div class="stat-card"><div class="stat-number">${data.counts.definitive}</div><div class="stat-label">Definitive</div></div>`;
+            html += `<div class="stat-card"><div class="stat-number">${data.counts.signal_dependent}</div><div class="stat-label">Signal-Dependent</div></div>`;
+            html += '</div>';
+
+            // Combine all policies for pagination
+            const allPolicies = [...data.applied_definitive, ...data.applied_signal_dependent];
+
+            if (allPolicies.length > 0) {
+                const totalPages = Math.ceil(allPolicies.length / whatIfPerPage);
+                const startIdx = (currentWhatIfPage - 1) * whatIfPerPage;
+                const endIdx = Math.min(startIdx + whatIfPerPage, allPolicies.length);
+                const currentPagePolicies = allPolicies.slice(startIdx, endIdx);
+
+                // Pagination controls at top
+                if (totalPages > 1) {
+                    html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px; background: #f9f9f9; border: 1px solid #ddd;">';
+                    html += `<div style="color: #666; font-size: 0.9em;">Showing ${startIdx + 1}-${endIdx} of ${allPolicies.length} policies (Page ${currentWhatIfPage} of ${totalPages})</div>`;
+                    html += '<div style="display: flex; align-items: center; gap: 8px;">';
+                    html += `<button class="btn btn-primary" onclick="changeWhatIfPage(${currentWhatIfPage - 1})" ${currentWhatIfPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                    html += `<input type="number" id="wi-page-input-top" min="1" max="${totalPages}" value="${currentWhatIfPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToWhatIfPage('wi-page-input-top', ${totalPages})">`;
+                    html += `<button class="btn btn-primary" onclick="goToWhatIfPage('wi-page-input-top', ${totalPages})">Go</button>`;
+                    html += `<button class="btn btn-primary" onclick="changeWhatIfPage(${currentWhatIfPage + 1})" ${currentWhatIfPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                    html += '</div></div>';
+                }
+
+                // Separate definitive and signal-dependent within the current page
+                const pageDefinitive = currentPagePolicies.filter(p =>
+                    data.applied_definitive.some(d => d.policy_id === p.policy_id)
+                );
+                const pageSignalDependent = currentPagePolicies.filter(p =>
+                    data.applied_signal_dependent.some(d => d.policy_id === p.policy_id)
+                );
+
+                if (pageDefinitive.length > 0) {
+                    html += '<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Applied (Definitive)</h4>';
+                    html += renderPolicies(pageDefinitive);
+                }
+
+                if (pageSignalDependent.length > 0) {
+                    html += '<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Applied (Signal-Dependent)</h4>';
+                    html += renderPolicies(pageSignalDependent);
+                }
+
+                // Pagination controls at bottom
+                if (totalPages > 1) {
+                    html += '<div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding: 12px;">';
+                    html += `<button class="btn btn-primary" onclick="changeWhatIfPage(${currentWhatIfPage - 1})" ${currentWhatIfPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                    html += `<span style="color: #666;">Page</span>`;
+                    html += `<input type="number" id="wi-page-input-bottom" min="1" max="${totalPages}" value="${currentWhatIfPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToWhatIfPage('wi-page-input-bottom', ${totalPages})">`;
+                    html += `<span style="color: #666;">of ${totalPages}</span>`;
+                    html += `<button class="btn btn-primary" onclick="goToWhatIfPage('wi-page-input-bottom', ${totalPages})">Go</button>`;
+                    html += `<button class="btn btn-primary" onclick="changeWhatIfPage(${currentWhatIfPage + 1})" ${currentWhatIfPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                    html += '</div>';
+                }
+            } else {
+                html += '<div class="empty-state">No policies apply to this scenario</div>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function changeWhatIfPage(newPage) {
+            if (!whatIfData) return;
+            const allPolicies = [...whatIfData.applied_definitive, ...whatIfData.applied_signal_dependent];
+            const totalPages = Math.ceil(allPolicies.length / whatIfPerPage);
+            if (newPage < 1 || newPage > totalPages) return;
+            currentWhatIfPage = newPage;
+            renderWhatIf();
+            document.getElementById('wi-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function goToWhatIfPage(inputId, totalPages) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            const pageNum = parseInt(input.value);
+            if (isNaN(pageNum)) {
+                alert('Please enter a valid page number');
+                return;
+            }
+
+            if (pageNum < 1 || pageNum > totalPages) {
+                alert(`Page number must be between 1 and ${totalPages}`);
+                return;
+            }
+
+            changeWhatIfPage(pageNum);
+        }
+
+        async function analyzeGaps(event) {
+            event.preventDefault();
+            const resultsDiv = document.getElementById('an-results');
+            resultsDiv.innerHTML = '<div class="loading">Analyzing scenarios... This may take a while.</div>';
+            resultsDiv.classList.add('show');
+
+            const requestBody = {
+                user: document.getElementById('an-user').value,
+                resource: document.getElementById('an-resource').value || null,
+                acr: document.getElementById('an-acr').value || null,
+                max_scenarios: parseInt(document.getElementById('an-max-scenarios').value),
+                platform: document.getElementById('an-platform').value || null,
+                trusted_location: document.getElementById('an-trusted-location').value ?
+                    document.getElementById('an-trusted-location').value === 'true' : null,
+                client_app: document.getElementById('an-client-app').value || null,
+                db_path: dbPath
+            };
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to run analysis');
+                }
+
+                displayAnalyzeResults(data);
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayAnalyzeResults(data) {
+            analyzeGapsData = data;
+            currentGapsPage = 1;
+            renderAnalyzeGaps();
+        }
+
+        function renderAnalyzeGaps() {
+            if (!analyzeGapsData) return;
+
+            const resultsDiv = document.getElementById('an-results');
+            const summary = analyzeGapsData.summary;
+            const gaps = analyzeGapsData.gaps;
+
+            let html = '<div class="results-header"><h3>Analysis Results</h3></div>';
+
+            html += '<div class="stats-grid">';
+            html += `<div class="stat-card"><div class="stat-number">${summary.scenarios_evaluated}</div><div class="stat-label">Scenarios</div></div>`;
+            html += `<div class="stat-card"><div class="stat-number">${summary.gap_counts.NO_POLICIES_APPLY || 0}</div><div class="stat-label">No Policies</div></div>`;
+            html += `<div class="stat-card"><div class="stat-number">${summary.gap_counts.REPORT_ONLY_BYPASS || 0}</div><div class="stat-label">Report-Only</div></div>`;
+            html += `<div class="stat-card"><div class="stat-number">${summary.gap_counts.TRUSTED_LOCATION_BYPASS || 0}</div><div class="stat-label">Location Bypass</div></div>`;
+            html += '</div>';
+
+            if (gaps.length === 0) {
+                html += '<div class="alert alert-success">No gaps found. All scenarios are properly covered by Conditional Access policies.</div>';
+            } else {
+                const totalPages = Math.ceil(gaps.length / gapsPerPage);
+                const startIdx = (currentGapsPage - 1) * gapsPerPage;
+                const endIdx = Math.min(startIdx + gapsPerPage, gaps.length);
+                const currentPageGaps = gaps.slice(startIdx, endIdx);
+
+                html += `<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Gaps Found (${gaps.length})</h4>`;
+
+                // Pagination controls at top
+                if (totalPages > 1) {
+                    html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px; background: #f9f9f9; border: 1px solid #ddd;">';
+                    html += `<div style="color: #666; font-size: 0.9em;">Showing ${startIdx + 1}-${endIdx} of ${gaps.length} gaps (Page ${currentGapsPage} of ${totalPages})</div>`;
+                    html += '<div style="display: flex; align-items: center; gap: 8px;">';
+                    html += `<button class="btn btn-primary" onclick="changeGapsPage(${currentGapsPage - 1})" ${currentGapsPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                    html += `<input type="number" id="gap-page-input-top" min="1" max="${totalPages}" value="${currentGapsPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToGapsPage('gap-page-input-top', ${totalPages})">`;
+                    html += `<button class="btn btn-primary" onclick="goToGapsPage('gap-page-input-top', ${totalPages})">Go</button>`;
+                    html += `<button class="btn btn-primary" onclick="changeGapsPage(${currentGapsPage + 1})" ${currentGapsPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                    html += '</div></div>';
+                }
+
+                html += '<div class="policy-list">';
+                currentPageGaps.forEach(gap => {
+                    html += `<div class="policy-item block">`;
+                    html += `<div class="policy-name">${gap.gap_type}</div>`;
+                    html += `<div class="policy-reason">${gap.summary}</div>`;
+                    html += '<div class="scenario-grid" style="margin-top: 12px;">';
+                    Object.entries(gap.scenario).filter(([k,v]) => v !== null).forEach(([key, value]) => {
+                        html += `<div class="scenario-item"><span class="scenario-label">${key}:</span><span class="scenario-value">${value}</span></div>`;
+                    });
+                    html += '</div></div>';
+                });
+                html += '</div>';
+
+                // Pagination controls at bottom
+                if (totalPages > 1) {
+                    html += '<div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding: 12px;">';
+                    html += `<button class="btn btn-primary" onclick="changeGapsPage(${currentGapsPage - 1})" ${currentGapsPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                    html += `<span style="color: #666;">Page</span>`;
+                    html += `<input type="number" id="gap-page-input-bottom" min="1" max="${totalPages}" value="${currentGapsPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToGapsPage('gap-page-input-bottom', ${totalPages})">`;
+                    html += `<span style="color: #666;">of ${totalPages}</span>`;
+                    html += `<button class="btn btn-primary" onclick="goToGapsPage('gap-page-input-bottom', ${totalPages})">Go</button>`;
+                    html += `<button class="btn btn-primary" onclick="changeGapsPage(${currentGapsPage + 1})" ${currentGapsPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                    html += '</div>';
+                }
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function changeGapsPage(newPage) {
+            if (!analyzeGapsData) return;
+            const totalPages = Math.ceil(analyzeGapsData.gaps.length / gapsPerPage);
+            if (newPage < 1 || newPage > totalPages) return;
+            currentGapsPage = newPage;
+            renderAnalyzeGaps();
+            // Scroll to top of results
+            document.getElementById('an-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function goToGapsPage(inputId, totalPages) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            const pageNum = parseInt(input.value);
+            if (isNaN(pageNum)) {
+                alert('Please enter a valid page number');
+                return;
+            }
+
+            if (pageNum < 1 || pageNum > totalPages) {
+                alert(`Page number must be between 1 and ${totalPages}`);
+                return;
+            }
+
+            changeGapsPage(pageNum);
+        }
+
+        function renderPolicies(policies) {
+            if (!policies || policies.length === 0) {
+                return '<div class="empty-state">No policies found</div>';
+            }
+
+            return '<div class="policy-list">' + policies.map(policy => {
+                const effectClass = policy.effect === 'Block' ? 'block' : (policy.effect === 'Grant' ? 'grant' : '');
+                return `
+                    <div class="policy-item ${effectClass}">
+                        <div class="policy-header">
+                            <div>
+                                <div class="policy-name">${policy.policy_name}</div>
+                                <div class="policy-id">${policy.policy_id}</div>
+                            </div>
+                        </div>
+                        ${policy.state || policy.effect ? `
+                            <div class="policy-meta">
+                                ${policy.state ? `<div class="policy-meta-item"><span class="policy-meta-label">State:</span><span class="policy-meta-value">${policy.state}</span></div>` : ''}
+                                ${policy.effect ? `<div class="policy-meta-item"><span class="policy-meta-label">Effect:</span><span class="policy-meta-value">${policy.effect}</span></div>` : ''}
+                            </div>
+                        ` : ''}
+                        ${policy.controls && policy.controls.length > 0 ? `
+                            <div class="policy-controls">
+                                ${policy.controls.map(c => `<span class="control-tag">${c}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="policy-reason">${policy.applies_reason}</div>
+                    </div>
+                `;
+            }).join('') + '</div>';
+        }
+
+        async function loadAllPolicies() {
+            const resultsDiv = document.getElementById('ap-results');
+            resultsDiv.innerHTML = '<div class="loading">Loading all policies...</div>';
+            resultsDiv.classList.add('show');
+
+            try {
+                const params = new URLSearchParams({ db_path: dbPath });
+                const response = await fetch(`/api/all-policies?${params}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to fetch policies');
+                }
+
+                displayAllPolicies(data);
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        let allPoliciesData = null;
+        let currentFilter = 'all';
+        let analyzeGapsData = null;
+        let currentGapsPage = 1;
+        const gapsPerPage = 50;
+
+        // Get Policies state
+        let getPoliciesData = null;
+        let currentGetPoliciesFilter = 'all';
+        let currentGetPoliciesPage = 1;
+        const policiesPerPage = 50;
+
+        // What-If state
+        let whatIfData = null;
+        let currentWhatIfPage = 1;
+        const whatIfPerPage = 50;
+
+        // All Policies state
+        let currentAllPoliciesPage = 1;
+        const allPoliciesPerPage = 50;
+
+        function displayAllPolicies(data) {
+            allPoliciesData = data; // Store for filtering
+            currentFilter = 'all';
+            renderAllPolicies();
+        }
+
+        function filterAllPolicies(filter) {
+            currentFilter = filter;
+            currentAllPoliciesPage = 1;
+            renderAllPolicies();
+        }
+
+        function renderAllPolicies() {
+            if (!allPoliciesData) return;
+
+            const data = allPoliciesData;
+            const resultsDiv = document.getElementById('ap-results');
+            let html = '<div class="results-header"><h3>All Policies</h3></div>';
+
+            const enabled = data.policies.filter(p => p.state === 'Enabled').length;
+            const reporting = data.policies.filter(p => p.state === 'Reporting').length;
+            const disabled = data.policies.filter(p => p.state === 'Disabled').length;
+
+            html += '<p style="color: #888; font-size: 0.85em; margin-bottom: 12px;">Click on a card to filter policies</p>';
+
+            html += '<div class="stats-grid">';
+            html += `<div class="stat-card ${currentFilter === 'all' ? 'active' : ''}" onclick="filterAllPolicies('all')" style="cursor: pointer;">
+                <div class="stat-number">${data.total}</div>
+                <div class="stat-label">Total Policies</div>
+            </div>`;
+            html += `<div class="stat-card ${currentFilter === 'Enabled' ? 'active' : ''}" onclick="filterAllPolicies('Enabled')" style="cursor: pointer;">
+                <div class="stat-number">${enabled}</div>
+                <div class="stat-label">Enabled</div>
+            </div>`;
+            html += `<div class="stat-card ${currentFilter === 'Reporting' ? 'active' : ''}" onclick="filterAllPolicies('Reporting')" style="cursor: pointer;">
+                <div class="stat-number">${reporting}</div>
+                <div class="stat-label">Reporting</div>
+            </div>`;
+            html += `<div class="stat-card ${currentFilter === 'Disabled' ? 'active' : ''}" onclick="filterAllPolicies('Disabled')" style="cursor: pointer;">
+                <div class="stat-number">${disabled}</div>
+                <div class="stat-label">Disabled</div>
+            </div>`;
+            html += '</div>';
+
+            // Filter policies based on current filter
+            let filteredPolicies = data.policies;
+            if (currentFilter !== 'all') {
+                filteredPolicies = data.policies.filter(p => p.state === currentFilter);
+            }
+
+            if (filteredPolicies.length > 0) {
+                const totalPages = Math.ceil(filteredPolicies.length / allPoliciesPerPage);
+                const startIdx = (currentAllPoliciesPage - 1) * allPoliciesPerPage;
+                const endIdx = Math.min(startIdx + allPoliciesPerPage, filteredPolicies.length);
+                const currentPagePolicies = filteredPolicies.slice(startIdx, endIdx);
+
+                // Pagination controls at top
+                if (totalPages > 1) {
+                    html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px; background: #f9f9f9; border: 1px solid #ddd;">';
+                    html += `<div style="color: #666; font-size: 0.9em;">Showing ${startIdx + 1}-${endIdx} of ${filteredPolicies.length} policies (Page ${currentAllPoliciesPage} of ${totalPages})</div>`;
+                    html += '<div style="display: flex; align-items: center; gap: 8px;">';
+                    html += `<button class="btn btn-primary" onclick="changeAllPoliciesPage(${currentAllPoliciesPage - 1})" ${currentAllPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                    html += `<input type="number" id="ap-page-input-top" min="1" max="${totalPages}" value="${currentAllPoliciesPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToAllPoliciesPage('ap-page-input-top', ${totalPages})">`;
+                    html += `<button class="btn btn-primary" onclick="goToAllPoliciesPage('ap-page-input-top', ${totalPages})">Go</button>`;
+                    html += `<button class="btn btn-primary" onclick="changeAllPoliciesPage(${currentAllPoliciesPage + 1})" ${currentAllPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                    html += '</div></div>';
+                }
+
+                html += '<div class="policy-list">';
+                currentPagePolicies.forEach(policy => {
+                    const stateClass = policy.state === 'Disabled' ? '' : (policy.state === 'Reporting' ? '' : 'grant');
+
+                    // Extract targeting info
+                    const targeting = extractPolicyTargeting(policy.detail);
+                    const apps = extractPolicyApps(policy.detail);
+
+                    html += `
+                        <div class="policy-item ${stateClass}" style="cursor: pointer;" onclick="togglePolicyDetails('policy-${policy.policy_id}')">
+                            <div class="policy-header">
+                                <div>
+                                    <div class="policy-name">${policy.policy_name}</div>
+                                    <div class="policy-id">${policy.policy_id}</div>
+                                </div>
+                            </div>
+                            <div class="policy-meta">
+                                <div class="policy-meta-item">
+                                    <span class="policy-meta-label">State:</span>
+                                    <span class="policy-meta-value">${policy.state}</span>
+                                </div>
+                                <div class="policy-meta-item">
+                                    <span class="policy-meta-label">Applies To:</span>
+                                    <span class="policy-meta-value">${targeting}</span>
+                                </div>
+                                <div class="policy-meta-item">
+                                    <span class="policy-meta-label">Apps:</span>
+                                    <span class="policy-meta-value">${apps}</span>
+                                </div>
+                                ${policy.created ? `
+                                    <div class="policy-meta-item">
+                                        <span class="policy-meta-label">Created:</span>
+                                        <span class="policy-meta-value">${new Date(policy.created).toLocaleDateString()}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div id="policy-${policy.policy_id}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                                <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
+                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+
+                // Pagination controls at bottom
+                if (totalPages > 1) {
+                    html += '<div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding: 12px;">';
+                    html += `<button class="btn btn-primary" onclick="changeAllPoliciesPage(${currentAllPoliciesPage - 1})" ${currentAllPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                    html += `<span style="color: #666;">Page</span>`;
+                    html += `<input type="number" id="ap-page-input-bottom" min="1" max="${totalPages}" value="${currentAllPoliciesPage}" style="width: 60px; padding: 8px; border: 1px solid #ccc; text-align: center;" onkeypress="if(event.key==='Enter') goToAllPoliciesPage('ap-page-input-bottom', ${totalPages})">`;
+                    html += `<span style="color: #666;">of ${totalPages}</span>`;
+                    html += `<button class="btn btn-primary" onclick="goToAllPoliciesPage('ap-page-input-bottom', ${totalPages})">Go</button>`;
+                    html += `<button class="btn btn-primary" onclick="changeAllPoliciesPage(${currentAllPoliciesPage + 1})" ${currentAllPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                    html += '</div>';
+                }
+            } else {
+                html += '<div class="empty-state">No policies found for this filter</div>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function extractPolicyTargeting(detail) {
+            const users = detail?.Conditions?.Users;
+            if (!users) return 'Not configured';
+
+            const include = users.Include || [];
+            const exclude = users.Exclude || [];
+
+            let parts = [];
+
+            for (const block of include) {
+                if (block.Users?.includes('All')) {
+                    parts.push('All users');
+                } else if (block.Users?.length > 0) {
+                    parts.push(`${block.Users.length} user(s)`);
+                }
+                if (block.Groups?.includes('All')) {
+                    parts.push('All groups');
+                } else if (block.Groups?.length > 0) {
+                    parts.push(`${block.Groups.length} group(s)`);
+                }
+                if (block.Roles?.length > 0 || block.DirectoryRoles?.length > 0 || block.RoleTemplateIds?.length > 0) {
+                    const roles = block.Roles || block.DirectoryRoles || block.RoleTemplateIds || [];
+                    parts.push(`${roles.length} role(s)`);
+                }
+            }
+
+            if (exclude.length > 0) {
+                parts.push(`(${exclude.length} exclusion(s))`);
+            }
+
+            return parts.length > 0 ? parts.join(', ') : 'Not configured';
+        }
+
+        function extractPolicyApps(detail) {
+            const apps = detail?.Conditions?.Applications;
+            if (!apps) return 'Not configured';
+
+            const include = apps.Include || [];
+            let parts = [];
+
+            for (const block of include) {
+                if (block.Applications?.includes('All')) {
+                    return 'All applications';
+                } else if (block.Applications?.includes('None')) {
+                    return 'None';
+                } else if (block.Applications?.length > 0) {
+                    parts.push(`${block.Applications.length} app(s)`);
+                }
+                if (block.Acrs?.length > 0) {
+                    parts.push(`${block.Acrs.length} user action(s)`);
+                }
+            }
+
+            return parts.length > 0 ? parts.join(', ') : 'Not configured';
+        }
+
+        function togglePolicyDetails(detailsId) {
+            const details = document.getElementById(detailsId);
+            if (details) {
+                details.style.display = details.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function changeAllPoliciesPage(newPage) {
+            if (!allPoliciesData) return;
+            const data = allPoliciesData;
+            let filteredPolicies = data.policies;
+            if (currentFilter !== 'all') {
+                filteredPolicies = data.policies.filter(p => p.state === currentFilter);
+            }
+            const totalPages = Math.ceil(filteredPolicies.length / allPoliciesPerPage);
+            if (newPage < 1 || newPage > totalPages) return;
+            currentAllPoliciesPage = newPage;
+            renderAllPolicies();
+            document.getElementById('ap-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function goToAllPoliciesPage(inputId, totalPages) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            const pageNum = parseInt(input.value);
+            if (isNaN(pageNum)) {
+                alert('Please enter a valid page number');
+                return;
+            }
+
+            if (pageNum < 1 || pageNum > totalPages) {
+                alert(`Page number must be between 1 and ${totalPages}`);
+                return;
+            }
+
+            changeAllPoliciesPage(pageNum);
+        }
+    </script>
+</body>
+</html>

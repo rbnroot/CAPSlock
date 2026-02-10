@@ -40,3 +40,39 @@ def parse_policy_details(policy: Policy) -> List[Dict[str, Any]]:
         except Exception as e:
             print(f"[!] Failed to parse policyDetail for {policy.displayName}: {e}")
     return details
+
+
+def load_named_locations(session) -> Dict[str, bool]:
+    """
+    Load named locations from the database and return a map of location_id -> is_trusted.
+
+    policyType == 6 => Named Locations
+    A location is trusted if "trusted" is in the Categories array of its detail.
+
+    Returns:
+        Dict mapping location objectId to boolean indicating if it's trusted
+    """
+    location_trust_map: Dict[str, bool] = {}
+
+    try:
+        locations = session.query(Policy).filter(Policy.policyType == 6).all()
+
+        for loc in locations:
+            is_trusted = False
+            if loc.policyDetail:
+                for detail_raw in loc.policyDetail:
+                    try:
+                        detail = json.loads(detail_raw)
+                        categories = detail.get("Categories", []) or []
+                        if "trusted" in [str(c).lower() for c in categories]:
+                            is_trusted = True
+                            break
+                    except:
+                        pass
+
+            location_trust_map[loc.objectId] = is_trusted
+
+    except Exception as e:
+        print(f"[!] Failed to load named locations: {e}")
+
+    return location_trust_map
