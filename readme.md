@@ -28,10 +28,16 @@ python3 -m venv <virtual-environemtn-name>
 source <path-to-environment>/bin/activate
 ```
 
-2. Install Dependancies 
+2. Install Dependancies
 
 ```bash
 pip install -r requirements.txt
+```
+
+3. (Optional) Install Web GUI Dependencies
+
+```bash
+pip install -r web-gui/requirements.txt
 ```
 
 ---
@@ -220,7 +226,7 @@ python3 CAPSlock.py analyze -u <userprincipalname> --acr <acr> [options]
 
 `convert` translates between **object IDs (GUIDs)** and **human-readable names** using the offline `roadrecon.db`.
 
-It supports users, groups, directory roles, applications, and service principals.  
+It supports users, groups, directory roles, applications, and service principals.
 
 
 ### Syntax
@@ -231,6 +237,50 @@ python3 CAPSlock.py convert (--id <object-id> | --name <friendly-name>) [options
 
 ### Additional Arguments
 
-- `--db <path>`  
-  Optional. Path to the `roadrecon.db` file used for resolution.  
+- `--db <path>`
+  Optional. Path to the `roadrecon.db` file used for resolution.
   Default: `roadrecon.db`
+
+---
+
+## web-gui
+
+### What it does
+
+`web-gui` starts an interactive web interface for CAPSlock, providing a browser-based alternative to the command-line interface.
+
+This is useful for:
+- Exploring Conditional Access policies interactively
+- Sharing results with team members who prefer a GUI
+- Running quick what-if scenarios without constructing CLI commands
+
+### Syntax
+
+```bash
+python3 CAPSlock.py web-gui [options]
+```
+
+### Additional Arguments
+
+- `--host <host>`
+  Optional. Host address to bind the web server to.
+  Default: `0.0.0.0` (accessible from all network interfaces)
+
+- `--port <port>`
+  Optional. Port number for the web server.
+  Default: `8000`
+
+- `--reload`
+  Optional. Enable auto-reload for development (server restarts when code changes are detected).
+
+### Example Usage
+
+```bash
+python3 CAPSlock.py web-gui
+
+python3 CAPSlock.py web-gui --port 8080
+
+python3 CAPSlock.py web-gui --host 127.0.0.1 --reload
+```
+
+Once started, open your browser to `http://localhost:8000` (or the configured host/port) to access the interface.

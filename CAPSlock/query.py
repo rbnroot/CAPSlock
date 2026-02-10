@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Optional
 from sqlalchemy import func
 from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal
-from CAPSlock.db import load_capolicies, parse_policy_details
+from CAPSlock.db import load_capolicies, parse_policy_details, load_named_locations
 from CAPSlock.models import SignInContext, PolicyResult, UserContext
 from CAPSlock.resolvers import build_name_resolver
 from CAPSlock.evaluator import evaluate_policy_detail
@@ -62,6 +62,9 @@ def get_policy_results_for_user(
     uctx = _build_user_context(session, user)
     policies = load_capolicies(session)
 
+    # Load named locations to determine which are trusted
+    location_trust_map = load_named_locations(session)
+
     results: List[PolicyResult] = []
     for p in policies:
         for d in parse_policy_details(p):
@@ -73,6 +76,7 @@ def get_policy_results_for_user(
                     signin_ctx=signin_ctx,
                     mode=mode,
                     resolver=resolver,
+                    location_trust_map=location_trust_map,
                 )
             )
 

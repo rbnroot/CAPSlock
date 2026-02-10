@@ -12,6 +12,7 @@ def evaluate_policy_detail(
     signin_ctx: SignInContext,
     mode: str = "get-policies",
     resolver: Optional[object] = None,
+    location_trust_map: Optional[Dict[str, bool]] = None,
 ) -> PolicyResult:
     state = detail.get("State")
 
@@ -57,7 +58,7 @@ def evaluate_policy_detail(
             applies_reason=tgt.applies_reason,
         )
 
-    matched_all, blockers, runtime_notes = evaluate_conditions(detail, signin_ctx)
+    matched_all, blockers, runtime_notes = evaluate_conditions(detail, signin_ctx, location_trust_map)
     if not matched_all:
         reason = "Not applicable: " + "; ".join(blockers[:3]) + ("..." if len(blockers) > 3 else "")
         return PolicyResult(
