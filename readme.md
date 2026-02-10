@@ -135,6 +135,12 @@ python3 CAPSlock.py what-if -u <userprincipalname> --acr <user-action> [options]
 - `--device-filter <true|false>`  
   Optional. Device filter match flag.
 
+  - `--entra-joined <true|false>`  
+  Optional. Device join state flag.
+
+- `--device-compliant <true|false>`  
+  Optional. Device compliance flag.
+
 - `--strict`  
   Optional. Only show policies that definitively apply (hide signal-dependent policies).
 

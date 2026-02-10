@@ -62,7 +62,6 @@ def get_policy_results_for_user(
     uctx = _build_user_context(session, user)
     policies = load_capolicies(session)
 
-    # Load named locations to determine which are trusted
     location_trust_map = load_named_locations(session)
 
     results: List[PolicyResult] = []

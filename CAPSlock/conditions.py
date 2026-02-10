@@ -274,32 +274,91 @@ def _eval_device_filter_condition(detail: Dict[str, Any], signin_ctx: SignInCont
         return ConditionEval(matched=True, reason="DeviceFilter: matched (true)")
     return ConditionEval(matched=False, reason="DeviceFilter: did not match (false)")
 
-def _eval_device_compliance_condition(detail: Dict[str, Any], signin_ctx: SignInContext) -> ConditionEval:
+def _eval_device_state_condition(detail: Dict[str, Any], signin_ctx: SignInContext) -> ConditionEval:
+    """
+    Evaluate device state conditions (compliance, hybrid joined, domain joined).
+    Handles both Include and Exclude blocks.
+    """
     cond = (detail.get("Conditions", {}) or {})
-    devices = cond.get("Devices") or {}
     device_states = cond.get("DeviceStates") or {}
 
-    wants_compliant = False
+    if not device_states:
+        return ConditionEval(matched=True, reason="DeviceState: no device state condition present")
 
-    for blk in (device_states.get("Include") or []):
+    include_blocks = device_states.get("Include") or []
+    exclude_blocks = device_states.get("Exclude") or []
+
+    inc_states: Set[str] = set()
+    exc_states: Set[str] = set()
+
+    for blk in include_blocks:
         vals = blk.get("DeviceStates") or []
-        if "Compliant" in vals or "compliant" in [str(x).lower() for x in vals]:
-            wants_compliant = True
+        inc_states.update(str(v).lower() for v in vals)
 
-    flt = devices.get("Filter") or {}
-    rule = (flt.get("Rule") or "")
-    if "iscompliant" in rule.replace(" ", "").lower():
-        wants_compliant = True
+    for blk in exclude_blocks:
+        vals = blk.get("DeviceStates") or []
+        exc_states.update(str(v).lower() for v in vals)
 
-    if not wants_compliant:
-        return ConditionEval(matched=True, reason="Device: no compliant-device requirement detected")
+    if not inc_states and not exc_states:
+        return ConditionEval(matched=True, reason="DeviceState: no device state requirements")
 
-    if signin_ctx.device_compliant is None:
-        return ConditionEval(matched=True, reason="Device: scenario device_compliant not provided", runtime_dependent=True)
+    # Check if we have the required signals
+    has_compliant_signal = signin_ctx.device_compliant is not None
+    has_joined_signal = signin_ctx.device_hybrid_joined is not None
 
-    if signin_ctx.device_compliant is True:
-        return ConditionEval(matched=True, reason="Device: scenario compliant device = true")
-    return ConditionEval(matched=False, reason="Device: requires compliant device (scenario false)")
+    # Determine what states are being checked
+    checks_compliant = "compliant" in inc_states or "compliant" in exc_states
+    checks_joined = any(x in inc_states or x in exc_states for x in ["domainjoined", "hybridazureaadjoined"])
+
+    # If policy checks states we don't have signals for, return runtime-dependent
+    if checks_compliant and not has_compliant_signal:
+        return ConditionEval(matched=True, reason="DeviceState: policy checks compliance but signal not provided", runtime_dependent=True)
+    if checks_joined and not has_joined_signal:
+        return ConditionEval(matched=True, reason="DeviceState: policy checks join state but signal not provided", runtime_dependent=True)
+
+    # FIRST: Check exclusions - if device matches an exclusion, policy does NOT apply
+    if exc_states:
+        if signin_ctx.device_compliant is True and "compliant" in exc_states:
+            return ConditionEval(matched=False, reason="DeviceState: device is compliant, policy excludes compliant devices")
+        if signin_ctx.device_compliant is False and any(x in exc_states for x in ["noncompliant", "non-compliant"]):
+            return ConditionEval(matched=False, reason="DeviceState: device is non-compliant, policy excludes non-compliant devices")
+        if signin_ctx.device_hybrid_joined is True and any(x in exc_states for x in ["domainjoined", "hybridazureaadjoined"]):
+            return ConditionEval(matched=False, reason="DeviceState: device is hybrid joined, policy excludes joined devices")
+        if signin_ctx.device_hybrid_joined is False and not any(x in exc_states for x in ["domainjoined", "hybridazureaadjoined"]):
+            # Device is not joined, and exclusion is not for joined devices
+            pass
+
+    # SECOND: Check inclusions - if device matches an inclusion, policy applies
+    if not inc_states:
+        # No inclusions means no requirement
+        return ConditionEval(matched=True, reason="DeviceState: no device state inclusions specified")
+
+    # Check if device state matches any inclusion
+    matched = False
+    reason_parts = []
+
+    if "compliant" in inc_states:
+        if signin_ctx.device_compliant is True:
+            matched = True
+            reason_parts.append("device is compliant")
+        elif signin_ctx.device_compliant is False:
+            reason_parts.append("policy requires compliant device, but device is non-compliant")
+            return ConditionEval(matched=False, reason=f"DeviceState: {', '.join(reason_parts)}")
+
+    if any(x in inc_states for x in ["domainjoined", "hybridazureaadjoined"]):
+        if signin_ctx.device_hybrid_joined is True:
+            matched = True
+            reason_parts.append("device is hybrid joined")
+        elif signin_ctx.device_hybrid_joined is False:
+            reason_parts.append("policy requires joined device, but device is not joined")
+            if not matched:  # Only return false if we didn't already match on another condition
+                return ConditionEval(matched=False, reason=f"DeviceState: {', '.join(reason_parts)}")
+
+    if matched:
+        return ConditionEval(matched=True, reason=f"DeviceState: {', '.join(reason_parts)}")
+
+    # No match found
+    return ConditionEval(matched=False, reason="DeviceState: device state does not match policy requirements")
 
 
 def _extract_platforms(detail: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
@@ -418,7 +477,7 @@ def evaluate_conditions(detail: Dict[str, Any], signin_ctx: SignInContext, locat
     evals.append(_eval_app_condition(detail, signin_ctx, policy_mode))
     evals.append(_eval_acr_condition(detail, signin_ctx, policy_mode))
     evals.append(_eval_trusted_location_condition(detail, signin_ctx, location_trust_map))
-    #evals.append(_eval_device_compliance_condition(detail, signin_ctx)) #come back to later.
+    evals.append(_eval_device_state_condition(detail, signin_ctx))
     evals.append(_eval_platform_condition(detail, signin_ctx))
     evals.append(_eval_client_app_condition(detail, signin_ctx))
     evals.append(_eval_signin_risk_condition(detail, signin_ctx))

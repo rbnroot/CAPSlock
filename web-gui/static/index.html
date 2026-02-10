@@ -643,6 +643,24 @@
                                         <option value="authtransfer">Auth Transfer</option>
                                     </select>
                                 </div>
+
+                                <div class="form-group">
+                                    <label for="wi-device-compliant">Device Compliant</label>
+                                    <select id="wi-device-compliant" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="wi-entra-joined">Device Entra/Hybrid Joined</label>
+                                    <select id="wi-entra-joined" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <button type="submit" class="btn btn-primary">Run Analysis</button>
@@ -760,6 +778,24 @@
                                 <div class="form-group">
                                     <label for="an-device-filter">Fixed Device Filter <small>(optional)</small></label>
                                     <select id="an-device-filter" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-device-compliant">Fixed Device Compliant <small>(optional)</small></label>
+                                    <select id="an-device-compliant" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-entra-joined">Fixed Device Entra/Hybrid Joined <small>(optional)</small></label>
+                                    <select id="an-entra-joined" class="form-control">
                                         <option value="">Permute all</option>
                                         <option value="true">True</option>
                                         <option value="false">False</option>
@@ -1081,6 +1117,10 @@
                 signin_risk: document.getElementById('wi-signin-risk').value || null,
                 user_risk: document.getElementById('wi-user-risk').value || null,
                 auth_flow: document.getElementById('wi-auth-flow').value || null,
+                device_compliant: document.getElementById('wi-device-compliant').value ?
+                    document.getElementById('wi-device-compliant').value === 'true' : null,
+                device_hybrid_joined: document.getElementById('wi-entra-joined').value ?
+                    document.getElementById('wi-entra-joined').value === 'true' : null,
                 db_path: dbPath
             };
 
@@ -1234,6 +1274,10 @@
                 auth_flow: document.getElementById('an-auth-flow').value || null,
                 device_filter: document.getElementById('an-device-filter').value ?
                     document.getElementById('an-device-filter').value === 'true' : null,
+                device_compliant: document.getElementById('an-device-compliant').value ?
+                    document.getElementById('an-device-compliant').value === 'true' : null,
+                device_hybrid_joined: document.getElementById('an-entra-joined').value ?
+                    document.getElementById('an-entra-joined').value === 'true' : null,
                 db_path: dbPath
             };
 
