@@ -77,7 +77,9 @@ class AnalyzeRequest(BaseModel):
 @app.get("/")
 async def root():
     """Serve the main HTML page"""
-    return FileResponse("static/index.html")
+    import os
+    static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    return FileResponse(static_path)
 
 
 @app.get("/api/health")
@@ -317,7 +319,9 @@ async def analyze_gaps(request: AnalyzeRequest):
 
 
 # Mount static files (after routes to avoid conflicts)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+import os
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 if __name__ == "__main__":

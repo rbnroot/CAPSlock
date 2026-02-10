@@ -1,5 +1,7 @@
 from __future__ import annotations
 import argparse
+import os
+import sys
 from CAPSlock.db import DB_PATH, get_session
 from CAPSlock.models import SignInContext
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
@@ -156,6 +158,45 @@ def cmd_analyze(args) -> int:
         session.close()
 
 
+def cmd_web_gui(args) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print("[!] uvicorn not installed. Install web dependencies:")
+        print("    pip install -r web-gui/requirements.txt")
+        return 1
+
+    # Get the path to the web-gui/api.py file
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    web_gui_dir = os.path.join(current_dir, "web-gui")
+
+    if not os.path.exists(os.path.join(web_gui_dir, "api.py")):
+        print(f"[!] Web GUI not found at {web_gui_dir}")
+        return 1
+
+    # Add web-gui directory to Python path so uvicorn can import the api module
+    sys.path.insert(0, web_gui_dir)
+
+    print("=" * 64)
+    print("Starting CAPSlock Web GUI")
+    print("=" * 64)
+    print(f"Host: {args.host}")
+    print(f"Port: {args.port}")
+    print(f"URL:  http://{args.host}:{args.port}")
+    print("=" * 64)
+    print()
+
+    # Run uvicorn
+    uvicorn.run(
+        "api:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+    )
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="CAPSlock",
@@ -223,6 +264,13 @@ def build_parser() -> argparse.ArgumentParser:
     p4.add_argument("--out", default="capslock_analyze", help="Output file prefix (default capslock_analyze)")
 
     p4.set_defaults(func=cmd_analyze)
+
+    # web-gui parser
+    p5 = sub.add_parser("web-gui", help="Start the web interface")
+    p5.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
+    p5.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
+    p5.add_argument("--reload", action="store_true", help="Enable auto-reload (for development)")
+    p5.set_defaults(func=cmd_web_gui)
 
     return parser
 

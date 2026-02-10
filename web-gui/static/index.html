@@ -726,6 +726,45 @@
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
+
+                                <div class="form-group">
+                                    <label for="an-signin-risk">Fixed Sign-in Risk <small>(optional)</small></label>
+                                    <select id="an-signin-risk" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="none">None</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-user-risk">Fixed User Risk <small>(optional)</small></label>
+                                    <select id="an-user-risk" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-auth-flow">Fixed Auth Flow <small>(optional)</small></label>
+                                    <select id="an-auth-flow" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="devicecodeflow">Device Code Flow</option>
+                                        <option value="authtransfer">Auth Transfer</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="an-device-filter">Fixed Device Filter <small>(optional)</small></label>
+                                    <select id="an-device-filter" class="form-control">
+                                        <option value="">Permute all</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <button type="submit" class="btn btn-primary">Start Analysis</button>
@@ -1190,6 +1229,11 @@
                 trusted_location: document.getElementById('an-trusted-location').value ?
                     document.getElementById('an-trusted-location').value === 'true' : null,
                 client_app: document.getElementById('an-client-app').value || null,
+                signin_risk: document.getElementById('an-signin-risk').value || null,
+                user_risk: document.getElementById('an-user-risk').value || null,
+                auth_flow: document.getElementById('an-auth-flow').value || null,
+                device_filter: document.getElementById('an-device-filter').value ?
+                    document.getElementById('an-device-filter').value === 'true' : null,
                 db_path: dbPath
             };
 

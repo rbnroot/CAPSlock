@@ -110,6 +110,50 @@ def _classify_gaps(results: List[PolicyResult], ctx: SignInContext) -> List[Dict
     scenario = _scenario_dict(ctx)
     gaps: List[Dict[str, Any]] = []
 
+    # Check trusted location bypasses FIRST (before generic no-policy checks)
+    if ctx.trusted_location is True:
+        if not def_en and not def_rep:
+            # No policies apply from trusted location - specific bypass
+            gaps.append(
+                _gap_record(
+                    "TRUSTED_LOCATION_BYPASS",
+                    scenario,
+                    "No definitive policies apply when signing in from a trusted location.",
+                    definitive=[],
+                    signal_dependent=sig,
+                )
+            )
+            return gaps
+
+        if not def_en and def_rep:
+            # Only reporting policies from trusted location - still a bypass
+            gaps.append(
+                _gap_record(
+                    "TRUSTED_LOCATION_BYPASS",
+                    scenario,
+                    "Only report-only (Reporting) policies apply from trusted location; no enforcement.",
+                    definitive=def_rep,
+                    signal_dependent=sig,
+                )
+            )
+            return gaps
+
+        if def_en:
+            # Policies apply from trusted location, but check if they're strong enough
+            has_block = any(_is_block(r) for r in def_en)
+            has_mfa = any(_is_mfa(r) for r in def_en)
+            if not has_block and not has_mfa:
+                gaps.append(
+                    _gap_record(
+                        "TRUSTED_LOCATION_BYPASS",
+                        scenario,
+                        "Trusted location has definitive policies, but none enforce MFA or Block.",
+                        definitive=def_en,
+                        signal_dependent=sig,
+                    )
+                )
+
+    # Generic no-policy scenarios (only if not trusted location)
     if not def_en and not def_rep:
         gaps.append(
             _gap_record(
@@ -133,20 +177,6 @@ def _classify_gaps(results: List[PolicyResult], ctx: SignInContext) -> List[Dict
             )
         )
         return gaps
-
-    if ctx.trusted_location is True:
-        has_block = any(_is_block(r) for r in def_en)
-        has_mfa = any(_is_mfa(r) for r in def_en)
-        if not has_block and not has_mfa:
-            gaps.append(
-                _gap_record(
-                    "TRUSTED_LOCATION_BYPASS",
-                    scenario,
-                    "Trusted location scenario has definitive policies, but none enforce MFA or Block.",
-                    definitive=def_en,
-                    signal_dependent=sig,
-                )
-            )
 
     return gaps
 
