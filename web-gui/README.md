@@ -1,6 +1,6 @@
 # CAPSlock Web GUI
 
-A modern web interface for CAPSlock - the offline Conditional Access policy analysis tool.
+Web interface for CAPSlock - an offline Conditional Access policy analysis tool.
 
 ## Features
 
