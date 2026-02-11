@@ -13,7 +13,48 @@ def _get_user_by_upn(session, upn: str) -> Optional[User]:
         session.query(User).filter(func.lower(User.userPrincipalName) == upn.strip().lower()).one_or_none()
     )
 
-def _build_user_context(session, user: User) -> UserContext:
+def _resolve_groups(session, group_identifiers: List[str]) -> tuple[set[str], List[str]]:
+    if not group_identifiers:
+        return set(), []
+
+    resolved_ids = set()
+    not_found = []
+
+    for identifier in group_identifiers:
+        group = session.query(Group).filter(
+            (Group.objectId == identifier) |
+            (func.lower(Group.displayName) == identifier.strip().lower())
+        ).first()
+
+        if group:
+            resolved_ids.add(group.objectId)
+        else:
+            not_found.append(identifier)
+
+    return resolved_ids, not_found
+
+def _resolve_roles(session, role_identifiers: List[str]) -> tuple[set[str], List[str]]:
+    if not role_identifiers:
+        return set(), []
+
+    resolved_ids = set()
+    not_found = []
+
+    for identifier in role_identifiers:
+        role = session.query(DirectoryRole).filter(
+            (DirectoryRole.objectId == identifier) |
+            (DirectoryRole.roleTemplateId == identifier) |
+            (func.lower(DirectoryRole.displayName) == identifier.strip().lower())
+        ).first()
+
+        if role:
+            resolved_ids.add(role.roleTemplateId if role.roleTemplateId else role.objectId)
+        else:
+            not_found.append(identifier)
+
+    return resolved_ids, not_found
+
+def _build_user_context(session, user: User, assumed_groups: set[str] = None, assumed_roles: set[str] = None) -> UserContext:
     groups = (
         session.query(Group)
         .join(Group.memberUsers)
@@ -40,6 +81,8 @@ def _build_user_context(session, user: User) -> UserContext:
         groups=group_ids,
         role_object_ids=role_object_ids,
         role_template_ids=role_template_ids,
+        assumed_groups=assumed_groups if assumed_groups else set(),
+        assumed_roles=assumed_roles if assumed_roles else set(),
     )
 
 
@@ -48,6 +91,8 @@ def get_policy_results_for_user(
     user_upn: str,
     signin_ctx: Optional[SignInContext] = None,
     mode: str = "get-policies",
+    assume_groups: List[str] = None,
+    assume_roles: List[str] = None,
 ) -> List[PolicyResult]:
     if signin_ctx is None:
         signin_ctx = SignInContext()
@@ -57,9 +102,24 @@ def get_policy_results_for_user(
         print(f"[!] User {user_upn} not found in DB")
         return []
 
+    assumed_group_ids = set()
+    assumed_role_ids = set()
+
+    if assume_groups:
+        resolved_groups, not_found_groups = _resolve_groups(session, assume_groups)
+        if not_found_groups:
+            raise ValueError(f"Groups not found in DB: {', '.join(not_found_groups)}")
+        assumed_group_ids = resolved_groups
+
+    if assume_roles:
+        resolved_roles, not_found_roles = _resolve_roles(session, assume_roles)
+        if not_found_roles:
+            raise ValueError(f"Roles not found in DB: {', '.join(not_found_roles)}")
+        assumed_role_ids = resolved_roles
+
     resolver = build_name_resolver(session)
 
-    uctx = _build_user_context(session, user)
+    uctx = _build_user_context(session, user, assumed_group_ids, assumed_role_ids)
     policies = load_capolicies(session)
 
     location_trust_map = load_named_locations(session)

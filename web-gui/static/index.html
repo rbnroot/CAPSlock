@@ -540,6 +540,18 @@
                                 </div>
                             </div>
 
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="gp-assume-groups">Assume Groups <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="gp-assume-groups" class="form-control" placeholder="IT Admins, Finance Team">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="gp-assume-roles">Assume Roles <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="gp-assume-roles" class="form-control" placeholder="Global Administrator, Intune Administrator">
+                                </div>
+                            </div>
+
                             <button type="submit" class="btn btn-primary">Execute Query</button>
                         </form>
                     </div>
@@ -661,6 +673,18 @@
                                         <option value="true">True</option>
                                         <option value="false">False</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="wi-assume-groups">Assume Groups <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="wi-assume-groups" class="form-control" placeholder="IT Admins, Finance Team">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="wi-assume-roles">Assume Roles <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="wi-assume-roles" class="form-control" placeholder="Global Administrator, Intune Administrator">
                                 </div>
                             </div>
 
@@ -804,6 +828,17 @@
                                 </div>
                             </div>
 
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="an-assume-groups">Assume Groups <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="an-assume-groups" class="form-control" placeholder="IT Admins, Finance Team">
+                                </div>
+                                <div class="form-group">
+                                    <label for="an-assume-roles">Assume Roles <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="an-assume-roles" class="form-control" placeholder="Global Administrator, Intune Administrator">
+                                </div>
+                            </div>
+
                             <button type="submit" class="btn btn-primary">Start Analysis</button>
                         </form>
                     </div>
@@ -913,10 +948,14 @@
             const user = document.getElementById('gp-user').value;
             const app = document.getElementById('gp-app').value;
             const results = document.getElementById('gp-results-mode').value;
+            const assumeGroups = document.getElementById('gp-assume-groups').value;
+            const assumeRoles = document.getElementById('gp-assume-roles').value;
 
             try {
                 const params = new URLSearchParams({ user, results, db_path: dbPath });
                 if (app) params.append('app', app);
+                if (assumeGroups) params.append('assume_groups', assumeGroups);
+                if (assumeRoles) params.append('assume_roles', assumeRoles);
 
                 const response = await fetch(`/api/policies?${params}`);
                 const data = await response.json();
@@ -950,6 +989,17 @@
             const data = getPoliciesData;
             const resultsDiv = document.getElementById('gp-results');
             let html = '<div class="results-header"><h3>Results</h3></div>';
+
+            if (data.assumed_memberships && (data.assumed_memberships.groups.length > 0 || data.assumed_memberships.roles.length > 0)) {
+                html += '<div class="scenario-box" style="background: #fff3cd; border-color: #ffc107;"><h4>Assumed Memberships</h4><div class="scenario-grid">';
+                if (data.assumed_memberships.groups.length > 0) {
+                    html += `<div class="scenario-item"><span class="scenario-label">Groups:</span><span class="scenario-value">${data.assumed_memberships.groups.join(', ')}</span></div>`;
+                }
+                if (data.assumed_memberships.roles.length > 0) {
+                    html += `<div class="scenario-item"><span class="scenario-label">Roles:</span><span class="scenario-value">${data.assumed_memberships.roles.join(', ')}</span></div>`;
+                }
+                html += '</div></div>';
+            }
 
             if (data.results_mode === 'all') {
                 html += '<p style="color: #888; font-size: 0.85em; margin-bottom: 12px;">Click on a card to filter policies</p>';
@@ -1124,6 +1174,9 @@
             resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
             resultsDiv.classList.add('show');
 
+            const assumeGroupsValue = document.getElementById('wi-assume-groups').value;
+            const assumeRolesValue = document.getElementById('wi-assume-roles').value;
+
             const requestBody = {
                 user: document.getElementById('wi-user').value,
                 resource: document.getElementById('wi-resource').value || null,
@@ -1139,6 +1192,8 @@
                     document.getElementById('wi-device-compliant').value === 'true' : null,
                 device_hybrid_joined: document.getElementById('wi-entra-joined').value ?
                     document.getElementById('wi-entra-joined').value === 'true' : null,
+                assume_groups: assumeGroupsValue ? assumeGroupsValue.split(',').map(g => g.trim()).filter(g => g) : null,
+                assume_roles: assumeRolesValue ? assumeRolesValue.split(',').map(r => r.trim()).filter(r => r) : null,
                 db_path: dbPath
             };
 
@@ -1173,6 +1228,17 @@
             const data = whatIfData;
             const resultsDiv = document.getElementById('wi-results');
             let html = '<div class="results-header"><h3>Analysis Results</h3></div>';
+
+            if (data.assumed_memberships && (data.assumed_memberships.groups.length > 0 || data.assumed_memberships.roles.length > 0)) {
+                html += '<div class="scenario-box" style="background: #fff3cd; border-color: #ffc107;"><h4>Assumed Memberships</h4><div class="scenario-grid">';
+                if (data.assumed_memberships.groups.length > 0) {
+                    html += `<div class="scenario-item"><span class="scenario-label">Groups:</span><span class="scenario-value">${data.assumed_memberships.groups.join(', ')}</span></div>`;
+                }
+                if (data.assumed_memberships.roles.length > 0) {
+                    html += `<div class="scenario-item"><span class="scenario-label">Roles:</span><span class="scenario-value">${data.assumed_memberships.roles.join(', ')}</span></div>`;
+                }
+                html += '</div></div>';
+            }
 
             html += '<div class="scenario-box"><h4>Scenario Parameters</h4><div class="scenario-grid">';
             for (const [key, value] of Object.entries(data.scenario)) {
@@ -1296,6 +1362,10 @@
                     document.getElementById('an-device-compliant').value === 'true' : null,
                 device_hybrid_joined: document.getElementById('an-entra-joined').value ?
                     document.getElementById('an-entra-joined').value === 'true' : null,
+                assume_groups: document.getElementById('an-assume-groups').value ?
+                    document.getElementById('an-assume-groups').value.split(',').map(g => g.trim()).filter(g => g) : null,
+                assume_roles: document.getElementById('an-assume-roles').value ?
+                    document.getElementById('an-assume-roles').value.split(',').map(r => r.trim()).filter(r => r) : null,
                 db_path: dbPath
             };
 
@@ -1332,6 +1402,18 @@
             const gaps = analyzeGapsData.gaps;
 
             let html = '<div class="results-header"><h3>Analysis Results</h3></div>';
+
+            // Display assumed memberships if any
+            if (summary.assumed_memberships && (summary.assumed_memberships.groups.length > 0 || summary.assumed_memberships.roles.length > 0)) {
+                html += '<div class="scenario-box" style="background: #fff3cd; border-color: #ffc107;"><h4>Assumed Memberships</h4><div class="scenario-grid">';
+                if (summary.assumed_memberships.groups.length > 0) {
+                    html += `<div class="scenario-item"><span class="scenario-label">Groups:</span><span class="scenario-value">${summary.assumed_memberships.groups.join(', ')}</span></div>`;
+                }
+                if (summary.assumed_memberships.roles.length > 0) {
+                    html += `<div class="scenario-item"><span class="scenario-label">Roles:</span><span class="scenario-value">${summary.assumed_memberships.roles.join(', ')}</span></div>`;
+                }
+                html += '</div></div>';
+            }
 
             html += '<div class="stats-grid">';
             html += `<div class="stat-card"><div class="stat-number">${summary.scenarios_evaluated}</div><div class="stat-label">Scenarios</div></div>`;

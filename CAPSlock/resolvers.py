@@ -39,6 +39,8 @@ def build_user_context(session, user: User) -> UserContext:
         groups=group_ids,
         role_object_ids=role_object_ids,
         role_template_ids=role_template_ids,
+        assumed_groups=set(),
+        assumed_roles=set(),
     )
 
 

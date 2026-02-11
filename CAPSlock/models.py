@@ -9,6 +9,14 @@ class UserContext:
     groups: Set[str]
     role_object_ids: Set[str]
     role_template_ids: Set[str]
+    assumed_groups: Set[str] = None
+    assumed_roles: Set[str] = None
+
+    def __post_init__(self):
+        if self.assumed_groups is None:
+            self.assumed_groups = set()
+        if self.assumed_roles is None:
+            self.assumed_roles = set()
 
 
 @dataclass
@@ -87,29 +95,3 @@ class ConditionEval:
     matched: bool
     reason: str
     runtime_dependent: bool = False
-
-@dataclass
-class UserContext:
-    user: User
-    object_id: str
-    groups: Set[str]
-    role_object_ids: Set[str]
-    role_template_ids: Set[str]
-
-
-@dataclass
-class NameResolver:
-    group_names_by_id: Dict[str, str]
-    role_names_by_template_id: Dict[str, str]
-    role_names_by_object_id: Dict[str, str]
-
-    def group_name(self, gid: str) -> str:
-        name = self.group_names_by_id.get(gid)
-        return f"{name} ({gid})" if name else gid
-
-    def role_name(self, rid: str) -> str:
-        name = (
-            self.role_names_by_template_id.get(rid)
-            or self.role_names_by_object_id.get(rid)
-        )
-        return f"{name} ({rid})" if name else rid

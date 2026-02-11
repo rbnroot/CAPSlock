@@ -54,8 +54,10 @@ def evaluate_user_targeting(detail: Dict[str, Any], user_ctx: UserContext, resol
         exc_roles.update(roles)
 
     matched_exc_users = [user_ctx.object_id] if user_ctx.object_id in exc_users else []
-    matched_exc_groups = list(user_ctx.groups & exc_groups)
-    matched_exc_roles = list((user_ctx.role_object_ids & exc_roles) | (user_ctx.role_template_ids & exc_roles))
+    all_groups = user_ctx.groups | user_ctx.assumed_groups
+    all_roles = user_ctx.role_object_ids | user_ctx.role_template_ids | user_ctx.assumed_roles
+    matched_exc_groups = list(all_groups & exc_groups)
+    matched_exc_roles = list(all_roles & exc_roles)
 
     if matched_exc_users or matched_exc_groups or matched_exc_roles:
         if matched_exc_users:
@@ -79,8 +81,8 @@ def evaluate_user_targeting(detail: Dict[str, Any], user_ctx: UserContext, resol
         )
 
     matched_inc_users = [user_ctx.object_id] if user_ctx.object_id in inc_users else []
-    matched_inc_groups = list(user_ctx.groups & inc_groups)
-    matched_inc_roles = list((user_ctx.role_object_ids & inc_roles) | (user_ctx.role_template_ids & inc_roles))
+    matched_inc_groups = list(all_groups & inc_groups)
+    matched_inc_roles = list(all_roles & inc_roles)
 
     if include_all_users:
         if not include_blocks:
