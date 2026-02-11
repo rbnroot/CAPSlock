@@ -12,7 +12,7 @@ ENV/
 .coverage
 htmlcov/
 
-roadrecon*.db
+*.db
 .roadtools_auth*
 caps.html
 *.jsonl
