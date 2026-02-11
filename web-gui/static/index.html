@@ -1363,7 +1363,7 @@
                 }
 
                 html += '<div class="policy-list">';
-                currentPageGaps.forEach(gap => {
+                currentPageGaps.forEach((gap, gapIndex) => {
                     html += `<div class="policy-item block">`;
                     html += `<div class="policy-name">${gap.gap_type}</div>`;
                     html += `<div class="policy-reason">${gap.summary}</div>`;
@@ -1371,7 +1371,68 @@
                     Object.entries(gap.scenario).filter(([k,v]) => v !== null).forEach(([key, value]) => {
                         html += `<div class="scenario-item"><span class="scenario-label">${key}:</span><span class="scenario-value">${value}</span></div>`;
                     });
-                    html += '</div></div>';
+                    html += '</div>';
+
+                    // Show policies involved in this gap
+                    if (gap.policies) {
+                        const defPolicies = gap.policies.definitive || [];
+                        const sigPolicies = gap.policies.signal_dependent || [];
+
+                        if (defPolicies.length > 0 || sigPolicies.length > 0) {
+                            html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">';
+                            html += '<h5 style="font-size: 0.9em; margin-bottom: 8px; font-weight: 600;">Policies in this scenario:</h5>';
+
+                            if (defPolicies.length > 0) {
+                                html += '<p style="font-size: 0.85em; font-weight: 600; margin: 8px 0 4px 0; color: #666;">Definitive:</p>';
+                                defPolicies.forEach((policy, policyIndex) => {
+                                    const detailsId = `gap-${gapIndex}-def-${policyIndex}`;
+                                    html += `
+                                        <div style="margin-left: 12px; margin-bottom: 8px; padding: 8px; background: #f9f9f9; border-left: 3px solid #007bff; cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
+                                            <div style="font-weight: 500; font-size: 0.9em;">${policy.display_name}</div>
+                                            <div style="font-size: 0.8em; color: #666; margin-top: 4px;">
+                                                <span>State: ${policy.state}</span>
+                                                ${policy.effect ? ` | Effect: ${policy.effect}` : ''}
+                                                ${policy.controls && policy.controls.length > 0 ? ` | Controls: ${policy.controls.join(', ')}` : ''}
+                                            </div>
+                                            ${policy.detail ? `
+                                                <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+                                                    <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
+                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                });
+                            }
+
+                            if (sigPolicies.length > 0) {
+                                html += '<p style="font-size: 0.85em; font-weight: 600; margin: 8px 0 4px 0; color: #666;">Signal-dependent:</p>';
+                                sigPolicies.forEach((policy, policyIndex) => {
+                                    const detailsId = `gap-${gapIndex}-sig-${policyIndex}`;
+                                    html += `
+                                        <div style="margin-left: 12px; margin-bottom: 8px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107; cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
+                                            <div style="font-weight: 500; font-size: 0.9em;">${policy.display_name}</div>
+                                            <div style="font-size: 0.8em; color: #666; margin-top: 4px;">
+                                                <span>State: ${policy.state}</span>
+                                                ${policy.effect ? ` | Effect: ${policy.effect}` : ''}
+                                                ${policy.controls && policy.controls.length > 0 ? ` | Controls: ${policy.controls.join(', ')}` : ''}
+                                            </div>
+                                            ${policy.detail ? `
+                                                <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+                                                    <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
+                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                });
+                            }
+
+                            html += '</div>';
+                        }
+                    }
+
+                    html += '</div>';
                 });
                 html += '</div>';
 
@@ -1426,8 +1487,10 @@
 
             return '<div class="policy-list">' + policies.map(policy => {
                 const effectClass = policy.effect === 'Block' ? 'block' : (policy.effect === 'Grant' ? 'grant' : '');
+                const detailsId = `policy-details-${policy.policy_id}`;
+
                 return `
-                    <div class="policy-item ${effectClass}">
+                    <div class="policy-item ${effectClass}" style="cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
                         <div class="policy-header">
                             <div>
                                 <div class="policy-name">${policy.policy_name}</div>
@@ -1446,6 +1509,12 @@
                             </div>
                         ` : ''}
                         <div class="policy-reason">${policy.applies_reason}</div>
+                        ${policy.detail ? `
+                            <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                                <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
+                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('') + '</div>';

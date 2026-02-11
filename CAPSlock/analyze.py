@@ -66,6 +66,7 @@ def _summarize_policy(r: PolicyResult) -> Dict[str, Any]:
         "effect": r.effect,
         "controls": r.controls or [],
         "reason": r.applies_reason,
+        "detail": r.detail,
     }
 
 
