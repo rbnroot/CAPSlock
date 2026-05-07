@@ -325,6 +325,11 @@ This is useful for:
 python3 CAPSlock.py web-gui [options]
 ```
 
+```
+# If installed via pipx
+capslock-web [options]
+```
+
 ### Additional Arguments
 
 - `--host <host>`
@@ -346,6 +351,9 @@ python3 CAPSlock.py web-gui
 python3 CAPSlock.py web-gui --port 8080
 
 python3 CAPSlock.py web-gui --host 127.0.0.1 --reload
+
+# If installed via pipx
+capslock-web --port 08080
 ```
 
 Once started, open your browser to `http://localhost:8000` (or the configured host/port) to access the interface.
