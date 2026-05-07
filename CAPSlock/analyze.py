@@ -225,6 +225,8 @@ def analyze(
     base: SignInContext,
     fixed: Dict[str, Any],
     max_scenarios: int = 1000,
+    assume_groups: Optional[List[str]] = None,
+    assume_roles: Optional[List[str]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     gaps_out: List[Dict[str, Any]] = []
     gap_counts = {
@@ -246,7 +248,14 @@ def analyze(
         device_filter=fixed.get("device_filter"),
     ):
         scenarios_evaluated += 1
-        results = get_policy_results_for_user(session, user_upn=user_upn, signin_ctx=ctx, mode="what-if")
+        results = get_policy_results_for_user(
+            session,
+            user_upn=user_upn,
+            signin_ctx=ctx,
+            mode="what-if",
+            assume_groups=assume_groups or [],
+            assume_roles=assume_roles or [],
+        )
         gaps = _classify_gaps(results, ctx)
         for g in gaps:
             gt = g["gap_type"]
@@ -265,6 +274,10 @@ def analyze(
         "scenarios_evaluated": scenarios_evaluated,
         "max_scenarios": max_scenarios,
         "gap_counts": gap_counts,
+        "assumed_memberships": {
+            "groups": assume_groups or [],
+            "roles": assume_roles or [],
+        },
     }
 
     return summary, gaps_out

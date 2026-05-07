@@ -70,12 +70,18 @@ python3 CAPSlock.py get-policies -u <userprincipalname> [options]
 - `--app <app-id>`  
   Optional. Filters results to policies that include the app in their application condition.
 
-- `--results <applied|exclusions|all>`  
+- `--results <applied|exclusions|all>`
   Optional. Policy Output Mode
   Default: applied
 
-- `--db <path>`  
-  Optional. Path to the `roadrecon.db` file used for resolution.  
+- `--assume-group <group-id-or-name> [<group-id-or-name> ...]`
+  Optional. Simulate the user being a member of these groups (useful for testing PIM or dynamic group scenarios). Accepts group IDs or display names.
+
+- `--assume-role <role-id-or-name> [<role-id-or-name> ...]`
+  Optional. Simulate the user having these roles (useful for testing PIM role activation scenarios). Accepts role object IDs, template IDs, or display names.
+
+- `--db <path>`
+  Optional. Path to the `roadrecon.db` file used for resolution.
   Default: `roadrecon.db`
 
 ---
@@ -138,10 +144,16 @@ python3 CAPSlock.py what-if -u <userprincipalname> --acr <user-action> [options]
   - `--entra-joined <true|false>`  
   Optional. Device join state flag.
 
-- `--device-compliant <true|false>`  
+- `--device-compliant <true|false>`
   Optional. Device compliance flag.
 
-- `--strict`  
+- `--assume-group <group-id-or-name> [<group-id-or-name> ...]`
+  Optional. Simulate the user being a member of these groups (useful for testing PIM or dynamic group scenarios). Accepts group IDs or display names.
+
+- `--assume-role <role-id-or-name> [<role-id-or-name> ...]`
+  Optional. Simulate the user having these roles (useful for testing PIM role activation scenarios). Accepts role object IDs, template IDs, or display names.
+
+- `--strict`
   Optional. Only show policies that definitively apply (hide signal-dependent policies).
 
 ---
@@ -213,15 +225,21 @@ python3 CAPSlock.py analyze -u <userprincipalname> --acr <acr> [options]
 - `--entra-joined <true|false>`  
   Optional. Device join state flag.
 
-- `--device-compliant <true|false>`  
+- `--device-compliant <true|false>`
   Optional. Device compliance flag.
 
-- `--max-scenarios <n>`  
-  Optional. Maximum number of scenarios to evaluate.  
+- `--assume-group <group-id-or-name> [<group-id-or-name> ...]`
+  Optional. Simulate the user being a member of these groups (useful for testing PIM or dynamic group scenarios). Accepts group IDs or display names. These memberships remain fixed across all permuted scenarios.
+
+- `--assume-role <role-id-or-name> [<role-id-or-name> ...]`
+  Optional. Simulate the user having these roles (useful for testing PIM role activation scenarios). Accepts role object IDs, template IDs, or display names. These roles remain fixed across all permuted scenarios.
+
+- `--max-scenarios <n>`
+  Optional. Maximum number of scenarios to evaluate.
   Default: `1000`.
 
-- `--out <prefix>`  
-  Optional. Output file prefix for generated analysis files.  
+- `--out <prefix>`
+  Optional. Output file prefix for generated analysis files.
   Default: `capslock_analyze`.
 
 ---

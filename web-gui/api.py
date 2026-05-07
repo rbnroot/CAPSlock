@@ -50,6 +50,8 @@ class WhatIfRequest(BaseModel):
     device_filter: Optional[bool] = Field(None, description="Device filter match flag")
     device_compliant: Optional[bool] = Field(None, description="Device compliance flag")
     device_hybrid_joined: Optional[bool] = Field(None, description="Device hybrid joined flag")
+    assume_groups: Optional[List[str]] = Field(None, description="Assumed group memberships")
+    assume_roles: Optional[List[str]] = Field(None, description="Assumed role memberships")
     db_path: Optional[str] = Field(DB_PATH, description="Path to roadrecon.db")
 
 
@@ -66,6 +68,8 @@ class AnalyzeRequest(BaseModel):
     device_filter: Optional[bool] = Field(None, description="Fixed device filter (permuted if not provided)")
     device_compliant: Optional[bool] = Field(None, description="Device compliance flag")
     device_hybrid_joined: Optional[bool] = Field(None, description="Device hybrid joined flag")
+    assume_groups: Optional[List[str]] = Field(None, description="Assumed group memberships")
+    assume_roles: Optional[List[str]] = Field(None, description="Assumed role memberships")
     max_scenarios: int = Field(1000, description="Maximum scenarios to evaluate")
     db_path: Optional[str] = Field(DB_PATH, description="Path to roadrecon.db")
 
@@ -173,6 +177,8 @@ async def get_policies(
     user: str = Query(..., description="User Principal Name"),
     app: Optional[str] = Query(None, description="Application ID filter"),
     results: str = Query("applied", description="Results mode: applied, exclusions, or all"),
+    assume_groups: Optional[str] = Query(None, description="Comma-separated group IDs or names"),
+    assume_roles: Optional[str] = Query(None, description="Comma-separated role IDs or names"),
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
 ):
 
@@ -180,19 +186,33 @@ async def get_policies(
         session = get_session(db_path)
         signin_ctx = SignInContext(app_id=app)
 
-        policy_results = get_policy_results_for_user(
-            session=session,
-            user_upn=user.strip().lower(),
-            signin_ctx=signin_ctx,
-            mode="get-policies",
-        )
+        groups_list = [g.strip() for g in assume_groups.split(",")] if assume_groups else []
+        roles_list = [r.strip() for r in assume_roles.split(",")] if assume_roles else []
+
+        try:
+            policy_results = get_policy_results_for_user(
+                session=session,
+                user_upn=user.strip().lower(),
+                signin_ctx=signin_ctx,
+                mode="get-policies",
+                assume_groups=groups_list,
+                assume_roles=roles_list,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         categorized = categorize_get_policies_results(policy_results)
+
+        assumed_memberships = {
+            "groups": groups_list,
+            "roles": roles_list,
+        }
 
         # Filter based on results mode
         if results == "applied":
             response = {
                 "user": user,
+                "assumed_memberships": assumed_memberships,
                 "results_mode": results,
                 "policies": categorized["applied"],
                 "count": categorized["applied_count"],
@@ -200,6 +220,7 @@ async def get_policies(
         elif results == "exclusions":
             response = {
                 "user": user,
+                "assumed_memberships": assumed_memberships,
                 "results_mode": results,
                 "policies": categorized["excluded"],
                 "count": categorized["excluded_count"],
@@ -207,6 +228,7 @@ async def get_policies(
         else:  # all
             response = {
                 "user": user,
+                "assumed_memberships": assumed_memberships,
                 "results_mode": results,
                 "applied": categorized["applied"],
                 "excluded": categorized["excluded"],
@@ -253,17 +275,26 @@ async def what_if(request: WhatIfRequest):
             device_compliant=request.device_compliant,
         )
 
-        policy_results = get_policy_results_for_user(
-            session=session,
-            user_upn=request.user.strip().lower(),
-            signin_ctx=signin_ctx,
-            mode="what-if",
-        )
+        try:
+            policy_results = get_policy_results_for_user(
+                session=session,
+                user_upn=request.user.strip().lower(),
+                signin_ctx=signin_ctx,
+                mode="what-if",
+                assume_groups=request.assume_groups or [],
+                assume_roles=request.assume_roles or [],
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         categorized = categorize_what_if_results(policy_results)
 
         response = {
             "user": request.user,
+            "assumed_memberships": {
+                "groups": request.assume_groups or [],
+                "roles": request.assume_roles or [],
+            },
             "scenario": {
                 "resource": signin_ctx.app_id,
                 "acr": signin_ctx.acr,
@@ -342,6 +373,8 @@ async def analyze_gaps(request: AnalyzeRequest):
             base=base,
             fixed=fixed,
             max_scenarios=request.max_scenarios,
+            assume_groups=request.assume_groups or [],
+            assume_roles=request.assume_roles or [],
         )
 
         session.close()

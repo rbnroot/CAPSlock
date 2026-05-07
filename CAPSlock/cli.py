@@ -20,15 +20,32 @@ def cmd_get_policies(args) -> int:
     try:
         signin_ctx = SignInContext(app_id=args.app)
 
-        results = get_policy_results_for_user(
-            session=session,
-            user_upn=args.user.strip().lower(),
-            signin_ctx=signin_ctx,
-            mode="get-policies",
-        )
+        assume_groups = getattr(args, "assume_group", None) or []
+        assume_roles = getattr(args, "assume_role", None) or []
+
+        try:
+            results = get_policy_results_for_user(
+                session=session,
+                user_upn=args.user.strip().lower(),
+                signin_ctx=signin_ctx,
+                mode="get-policies",
+                assume_groups=assume_groups,
+                assume_roles=assume_roles,
+            )
+        except ValueError as e:
+            print(f"[!] {e}")
+            return 1
 
         print(f"\nPolicies for user: {args.user}")
         print("=" * 64)
+
+        if assume_groups or assume_roles:
+            print("Assumed memberships:")
+            if assume_groups:
+                print(f"  Groups: {', '.join(assume_groups)}")
+            if assume_roles:
+                print(f"  Roles:  {', '.join(assume_roles)}")
+            print()
 
         print_sections_get_policies(results, args.results.lower())
         return 0
@@ -57,15 +74,33 @@ def cmd_what_if(args) -> int:
             device_compliant=normalize_bool_str(getattr(args, "device_compliant", None)),
         )
 
-        results = get_policy_results_for_user(
-            session=session,
-            user_upn=args.user.strip().lower(),
-            signin_ctx=signin_ctx,
-            mode="what-if",
-        )
+        assume_groups = getattr(args, "assume_group", None) or []
+        assume_roles = getattr(args, "assume_role", None) or []
+
+        try:
+            results = get_policy_results_for_user(
+                session=session,
+                user_upn=args.user.strip().lower(),
+                signin_ctx=signin_ctx,
+                mode="what-if",
+                assume_groups=assume_groups,
+                assume_roles=assume_roles,
+            )
+        except ValueError as e:
+            print(f"[!] {e}")
+            return 1
 
         print(f"\nWhat-If policies for user: {args.user}")
         print("=" * 64)
+
+        if assume_groups or assume_roles:
+            print("Assumed memberships:")
+            if assume_groups:
+                print(f"  Groups: {', '.join(assume_groups)}")
+            if assume_roles:
+                print(f"  Roles:  {', '.join(assume_roles)}")
+            print()
+
         print("Scenario:")
         print(f"  resource:            {signin_ctx.app_id}")
         print(f"  acr:                 {signin_ctx.acr}")
@@ -186,12 +221,17 @@ def cmd_analyze(args) -> int:
             "device_filter": normalize_bool_str(getattr(args, "device_filter", None)),
         }
 
+        assume_groups = getattr(args, "assume_group", None) or []
+        assume_roles = getattr(args, "assume_role", None) or []
+
         summary, gaps = analyze(
             session=session,
             user_upn=args.user,
             base=base,
             fixed=fixed,
             max_scenarios=int(args.max_scenarios),
+            assume_groups=assume_groups,
+            assume_roles=assume_roles,
         )
 
         summary_path, gaps_path = write_outputs(summary, gaps, prefix=args.out)
@@ -261,6 +301,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_user_args(p1)
     p1.add_argument("--app", default=None, help="Optional app id / logical name (filters app condition only if provided)")
     p1.add_argument("--results", choices=["applied", "exclusions", "all"], default="applied")
+    p1.add_argument("--assume-group", dest="assume_group", nargs="*", help="Assume user is in these groups (group IDs or names)")
+    p1.add_argument("--assume-role", dest="assume_role", nargs="*", help="Assume user has these roles (role IDs, template IDs, or names)")
     p1.set_defaults(func=cmd_get_policies)
 
     # what-if parser
@@ -280,6 +322,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p2.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Device Entra/Hybrid Azure AD joined flag (optional)")
     p2.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (optional)")
+
+    p2.add_argument("--assume-group", dest="assume_group", nargs="*", help="Assume user is in these groups (group IDs or names)")
+    p2.add_argument("--assume-role", dest="assume_role", nargs="*", help="Assume user has these roles (role IDs, template IDs, or names)")
 
     p2.add_argument("--strict", action="store_true", help="Only show policies that definitively apply (hide runtime-dependent policies)")
     p2.set_defaults(func=cmd_what_if)
@@ -315,6 +360,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p4.add_argument("--entra-joined", default=None, choices=["true", "false"], help="Device Entra/Hybrid Azure AD joined flag (fixed if provided)")
     p4.add_argument("--device-compliant", default=None, choices=["true", "false"], help="Device compliance flag (fixed if provided)")
+
+    p4.add_argument("--assume-group", dest="assume_group", nargs="*", help="Assume user is in these groups (group IDs or names)")
+    p4.add_argument("--assume-role", dest="assume_role", nargs="*", help="Assume user has these roles (role IDs, template IDs, or names)")
 
     p4.add_argument("--max-scenarios", default="1000", help="Maximum scenarios to evaluate (default 1000)")
     p4.add_argument("--out", default="capslock_analyze", help="Output file prefix (default capslock_analyze)")
