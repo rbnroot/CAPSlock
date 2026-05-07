@@ -1061,7 +1061,7 @@
                         html += '</div></div>';
                     }
 
-                    html += renderPolicies(currentPagePolicies);
+                    html += renderPolicies(currentPagePolicies, 'gp');
 
                     // Pagination controls at bottom
                     if (totalPages > 1) {
@@ -1101,7 +1101,7 @@
                         html += '</div></div>';
                     }
 
-                    html += renderPolicies(currentPagePolicies);
+                    html += renderPolicies(currentPagePolicies, 'gp');
 
                     // Pagination controls at bottom
                     if (totalPages > 1) {
@@ -1115,7 +1115,7 @@
                         html += '</div>';
                     }
                 } else {
-                    html += renderPolicies(policies);
+                    html += renderPolicies(policies, 'gp');
                 }
             }
 
@@ -1284,12 +1284,12 @@
 
                 if (pageDefinitive.length > 0) {
                     html += '<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Applied (Definitive)</h4>';
-                    html += renderPolicies(pageDefinitive);
+                    html += renderPolicies(pageDefinitive, 'wi');
                 }
 
                 if (pageSignalDependent.length > 0) {
                     html += '<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Applied (Signal-Dependent)</h4>';
-                    html += renderPolicies(pageSignalDependent);
+                    html += renderPolicies(pageSignalDependent, 'wi');
                 }
 
                 // Pagination controls at bottom
@@ -1477,7 +1477,7 @@
                                                 ${policy.controls && policy.controls.length > 0 ? ` | Controls: ${policy.controls.join(', ')}` : ''}
                                             </div>
                                             ${policy.detail ? `
-                                                <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+                                                <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                                     <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
                                                     <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${JSON.stringify(policy.detail, null, 2)}</pre>
                                                 </div>
@@ -1500,7 +1500,7 @@
                                                 ${policy.controls && policy.controls.length > 0 ? ` | Controls: ${policy.controls.join(', ')}` : ''}
                                             </div>
                                             ${policy.detail ? `
-                                                <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+                                                <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                                     <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
                                                     <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${JSON.stringify(policy.detail, null, 2)}</pre>
                                                 </div>
@@ -1562,14 +1562,15 @@
             changeGapsPage(pageNum);
         }
 
-        function renderPolicies(policies) {
+        function renderPolicies(policies, prefix) {
             if (!policies || policies.length === 0) {
                 return '<div class="empty-state">No policies found</div>';
             }
 
+            const idPrefix = prefix || 'pd';
             return '<div class="policy-list">' + policies.map(policy => {
                 const effectClass = policy.effect === 'Block' ? 'block' : (policy.effect === 'Grant' ? 'grant' : '');
-                const detailsId = `policy-details-${policy.policy_id}`;
+                const detailsId = `${idPrefix}-${policy.policy_id}`;
 
                 return `
                     <div class="policy-item ${effectClass}" style="cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
@@ -1592,7 +1593,7 @@
                         ` : ''}
                         <div class="policy-reason">${policy.applies_reason}</div>
                         ${policy.detail ? `
-                            <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                            <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                 <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
                                 <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${JSON.stringify(policy.detail, null, 2)}</pre>
                             </div>
@@ -1803,7 +1804,7 @@
                                     </div>
                                 ` : ''}
                             </div>
-                            <div id="policy-${policy.policy_id}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                            <div id="policy-${policy.policy_id}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                 <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
                                 <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${JSON.stringify(policy.detail, null, 2)}</pre>
                             </div>
