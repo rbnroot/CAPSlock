@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "capslock"
+version = "0.1.0"
+description = "Conditional Access Policy Scanner & Analyzer"
+requires-python = ">=3.8"
+dependencies = [
+    "roadtools",
+    "sqlalchemy",
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+]
+
+[project.scripts]
+capslock     = "CAPSlock.cli:main"
+capslock-web = "CAPSlock.web.server:main"
+
+[tool.setuptools.packages.find]
+include = ["CAPSlock*"]
+
+[tool.setuptools.package-data]
+"CAPSlock.web" = ["static/**/*"]

@@ -12,29 +12,70 @@ Instead of answering *“what policies exist?”*, CAPSlock focuses on:
 CAPSlock is read-only and safe to run against production tenants.
 
 ---
-## Requirements and Installation 
+## Requirements and Installation
 
 ### Requirements
-1. Python3
+1. Python 3.8+
 2. [ROADtools](https://github.com/dirkjanm/ROADtools)
 
-### Installation
-1. Create virtual environment. (I prefer `venv`, but `uv` and other solutions work as well)
+---
+
+### Option 1
+
+1. Install via pipx
 
 ```bash
-python3 -m venv <virtual-environemtn-name>
+pipx install git+https://github.com/rbnroot/CAPSlock.git
+```
 
-#Activate virtual environment
+```bash
+capslock --help
+capslock-web --help
+```
+
+```bash
+pipx upgrade capslock
+```
+
+---
+
+### Option 2
+
+1. Clone the repo and create a virtual environment:
+
+```bash
+git clone https://github.com/rbnroot/CAPSlock.git
+cd CAPSlock
+python3 -m venv venv
+source venv/bin/activate
+```
+
+2. Install:
+
+```bash
+pip install -e .
+```
+
+`capslock` and `capslock-web` will be available within the virtual environment.
+
+---
+
+### Option 3
+
+1. Create virtual environment:
+
+```bash
+python3 -m venv <virtual-environment-name>
 source <path-to-environment>/bin/activate
 ```
 
-2. Install Dependancies
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. (Optional) Install Web GUI Dependencies
+3. (Optional) Install Web GUI dependencies:
 
 ```bash
 pip install -r web-gui/requirements.txt
