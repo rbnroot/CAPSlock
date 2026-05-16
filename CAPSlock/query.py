@@ -158,7 +158,7 @@ def convert_from_id(session, object_id: str) -> List[str]:
     r = session.query(DirectoryRole).filter(DirectoryRole.roleTemplateId == oid).one_or_none()
     if r:
         label = r.displayName or "(no name)"
-        out.append(f"[Role]: {label} - {r.objectId}")
+        out.append(f"[Role]: {label} - {r.roleTemplateId}")
 
     a = session.query(Application).filter(Application.objectId == oid).one_or_none()
     if a:
@@ -181,29 +181,31 @@ def convert_from_name(session, name: str, limit: int = 10) -> List[str]:
     if not q:
         return ["[Unknown]: (empty)"]
 
+    pattern = f"%{q}%"
+
     users = session.query(User).filter(
-        (User.userPrincipalName == q) | (User.displayName == q)
+        (User.userPrincipalName.ilike(pattern)) | (User.displayName.ilike(pattern))
     ).limit(limit).all()
     for u in users:
         label = u.userPrincipalName or u.displayName or "(no upn)"
         out.append(f"[User]: {label} - {u.objectId}")
 
-    groups = session.query(Group).filter(Group.displayName == q).limit(limit).all()
+    groups = session.query(Group).filter(Group.displayName.ilike(pattern)).limit(limit).all()
     for g in groups:
         label = g.displayName or "(no name)"
         out.append(f"[Group]: {label} - {g.objectId}")
 
-    roles = session.query(DirectoryRole).filter(DirectoryRole.displayName == q).limit(limit).all()
+    roles = session.query(DirectoryRole).filter(DirectoryRole.displayName.ilike(pattern)).limit(limit).all()
     for r in roles:
         label = r.displayName or "(no name)"
-        out.append(f"[Role]: {label} - {r.objectId}")
+        out.append(f"[Role]: {label} - {r.roleTemplateId}")
 
-    apps = session.query(Application).filter(Application.displayName == q).limit(limit).all()
+    apps = session.query(Application).filter(Application.displayName.ilike(pattern)).limit(limit).all()
     for a in apps:
         label = a.displayName or "(no name)"
         out.append(f"[Application]: {label} - {a.objectId}")
 
-    sps = session.query(ServicePrincipal).filter(ServicePrincipal.displayName == q).limit(limit).all()
+    sps = session.query(ServicePrincipal).filter(ServicePrincipal.displayName.ilike(pattern)).limit(limit).all()
     for sp in sps:
         label = sp.displayName or "(no name)"
         out.append(f"[ServicePrincipal]: {label} - {sp.objectId}")

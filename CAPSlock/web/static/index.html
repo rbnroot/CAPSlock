@@ -486,14 +486,134 @@
             margin-bottom: 16px;
             opacity: 0.3;
         }
+        .search-bar {
+            padding: 12px 16px;
+            border-bottom: 1px solid #333;
+            position: relative;
+        }
+        .search-bar input {
+            width: 100%;
+            padding: 8px 10px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #fff;
+            font-size: 0.85em;
+            border-radius: 4px;
+            outline: none;
+        }
+        .search-bar input::placeholder { color: #666; }
+        .search-bar input:focus { border-color: #0078d4; }
+        .search-dropdown {
+            position: absolute;
+            left: 8px; right: 8px;
+            background: #fff;
+            border: 1px solid #ddd;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-height: 320px;
+            overflow-y: auto;
+            border-radius: 0 0 4px 4px;
+        }
+        .search-result-item {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+            color: #1a1a1a;
+        }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background: #eef4fb; }
+        .search-result-name {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #1a1a1a;
+            display: inline;
+            vertical-align: middle;
+        }
+        .search-result-id {
+            font-size: 0.8em;
+            color: #444;
+            margin-top: 4px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .search-result-type {
+            display: inline-block;
+            padding: 3px 7px;
+            border-radius: 3px;
+            font-size: 0.72em;
+            font-weight: 700;
+            margin-right: 8px;
+            color: #fff;
+            vertical-align: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .type-user              { background: #0078d4; }
+        .type-group             { background: #107c10; }
+        .type-role              { background: #7719aa; }
+        .type-application       { background: #ca5010; }
+        .type-serviceprincipal  { background: #5c5c5c; }
+        .guid-link {
+            color: #0078d4;
+            cursor: pointer;
+            text-decoration: underline dotted;
+        }
+        .guid-link:hover { color: #005a9e; }
+        #guid-lookup-card {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 380px;
+            border-radius: 6px;
+            display: none;
+        }
+        #guid-lookup-card .lookup-header {
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78em;
+            color: #555;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        #guid-lookup-card .lookup-close {
+            cursor: pointer;
+            font-size: 1.2em;
+            color: #999;
+            margin-left: 8px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        #guid-lookup-card .lookup-close:hover { color: #333; }
+        #guid-lookup-card .lookup-body { max-height: 260px; overflow-y: auto; }
     </style>
 </head>
 <body>
+    <div id="guid-lookup-card">
+        <div class="lookup-header">
+            <span id="guid-lookup-query"></span>
+            <span class="lookup-close" onclick="closeLookupCard()">&#x2715;</span>
+        </div>
+        <div class="lookup-body" id="guid-lookup-body"></div>
+    </div>
+
     <div class="container">
         <div class="sidebar">
             <div class="logo">
                 <h1>CAPSlock</h1>
                 <p>CA Policy Analysis</p>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="global-search" placeholder="Search ID or name..."
+                       oninput="onGlobalSearchInput()" onkeydown="if(event.key==='Enter') runGlobalSearch()">
+                <div id="search-dropdown" class="search-dropdown" style="display:none;"></div>
             </div>
             <nav class="nav">
                 <a class="nav-item active" onclick="switchPage('get-policies')">Get Policies</a>
@@ -905,6 +1025,139 @@
 
     <script>
         let dbPath = 'roadrecon.db';
+
+        // ── Global search / convert ──────────────────────────────────────────
+        const GUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+        let searchDebounce = null;
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function renderJsonWithGuidLinks(obj) {
+            const escaped = escapeHtml(JSON.stringify(obj, null, 2));
+            return escaped.replace(GUID_RE, guid =>
+                `<span class="guid-link" onclick="triggerConvertSearch('${guid}', event)" title="Look up ${guid}">${guid}</span>`
+            );
+        }
+
+        function triggerConvertSearch(guid, event) {
+            if (event) { event.stopPropagation(); showLookupCard(guid, event); }
+            else { document.getElementById('global-search').value = guid; runGlobalSearch(); }
+        }
+
+        function closeLookupCard() {
+            document.getElementById('guid-lookup-card').style.display = 'none';
+        }
+
+        async function showLookupCard(guid, event) {
+            const card = document.getElementById('guid-lookup-card');
+            const body = document.getElementById('guid-lookup-body');
+            const queryEl = document.getElementById('guid-lookup-query');
+
+            queryEl.textContent = guid;
+            body.innerHTML = '<div style="padding:12px 14px;color:#666;font-size:0.85em;">Looking up...</div>';
+            card.style.display = 'block';
+            positionLookupCard(card, event);
+
+            try {
+                const params = new URLSearchParams({ query: guid, db_path: dbPath });
+                const res = await fetch(`/api/convert?${params}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Lookup failed');
+
+                if (data.results.length === 0) {
+                    body.innerHTML = '<div style="padding:12px 14px;color:#666;font-size:0.85em;">No match found</div>';
+                    return;
+                }
+                body.innerHTML = data.results.map(r => {
+                    const typeClass = 'type-' + r.type.toLowerCase().replace(/\s+/g, '');
+                    return `<div class="search-result-item" onclick="copySearchResult('${r.id}')">
+                        <div>
+                            <span class="search-result-type ${typeClass}">${r.type}</span>
+                            <span class="search-result-name">${escapeHtml(r.name)}</span>
+                        </div>
+                        <div class="search-result-id">${escapeHtml(r.id)}</div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                body.innerHTML = `<div style="padding:12px 14px;color:#d13438;font-size:0.85em;">${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function positionLookupCard(card, event) {
+            const margin = 12;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            let left = event.clientX + margin;
+            let top = event.clientY + margin;
+            // Flip left if off right edge
+            if (left + 380 > vw - margin) left = event.clientX - 380 - margin;
+            // Flip up if off bottom edge
+            if (top + 300 > vh - margin) top = event.clientY - 300 - margin;
+            card.style.left = Math.max(margin, left) + 'px';
+            card.style.top = Math.max(margin, top) + 'px';
+        }
+
+        function onGlobalSearchInput() {
+            clearTimeout(searchDebounce);
+            const q = document.getElementById('global-search').value.trim();
+            if (!q) { document.getElementById('search-dropdown').style.display = 'none'; return; }
+            searchDebounce = setTimeout(runGlobalSearch, 300);
+        }
+
+        async function runGlobalSearch() {
+            const q = document.getElementById('global-search').value.trim();
+            if (!q) return;
+            const dropdown = document.getElementById('search-dropdown');
+            dropdown.innerHTML = '<div style="padding:10px 12px;color:#666;font-size:0.85em;">Searching...</div>';
+            dropdown.style.display = 'block';
+            try {
+                const params = new URLSearchParams({ query: q, db_path: dbPath });
+                const res = await fetch(`/api/convert?${params}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Search failed');
+                if (data.results.length === 0) {
+                    dropdown.innerHTML = '<div style="padding:10px 12px;color:#666;font-size:0.85em;">No results found</div>';
+                    return;
+                }
+                dropdown.innerHTML = data.results.map(r => {
+                    const typeClass = 'type-' + r.type.toLowerCase().replace(/\s+/g, '');
+                    const safeName = escapeHtml(r.name);
+                    const safeId = escapeHtml(r.id);
+                    return `<div class="search-result-item" onclick="copySearchResult('${r.id}')">
+                        <div>
+                            <span class="search-result-type ${typeClass}">${r.type}</span>
+                            <span class="search-result-name">${safeName}</span>
+                        </div>
+                        <div class="search-result-id">${safeId}</div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                dropdown.innerHTML = `<div style="padding:10px 12px;color:#d13438;font-size:0.85em;">${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function copySearchResult(id) {
+            navigator.clipboard.writeText(id).then(() => {
+                const dropdown = document.getElementById('search-dropdown');
+                const prev = dropdown.innerHTML;
+                dropdown.innerHTML = '<div style="padding:10px 12px;color:#107c10;font-size:0.85em;">Copied to clipboard!</div>';
+                setTimeout(() => { dropdown.innerHTML = prev; }, 1200);
+            });
+        }
+
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.search-bar')) {
+                const dd = document.getElementById('search-dropdown');
+                if (dd) dd.style.display = 'none';
+            }
+            const card = document.getElementById('guid-lookup-card');
+            if (card && !card.contains(e.target) && !e.target.classList.contains('guid-link')) {
+                card.style.display = 'none';
+            }
+        });
+        // ────────────────────────────────────────────────────────────────────
 
         function switchPage(pageId) {
             document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
@@ -1479,7 +1732,7 @@
                                             ${policy.detail ? `
                                                 <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                                     <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
-                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${renderJsonWithGuidLinks(policy.detail)}</pre>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -1502,7 +1755,7 @@
                                             ${policy.detail ? `
                                                 <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                                     <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
-                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${renderJsonWithGuidLinks(policy.detail)}</pre>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -1595,7 +1848,7 @@
                         ${policy.detail ? `
                             <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                 <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
-                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${renderJsonWithGuidLinks(policy.detail)}</pre>
                             </div>
                         ` : ''}
                     </div>
@@ -1806,7 +2059,7 @@
                             </div>
                             <div id="policy-${policy.policy_id}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
                                 <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
-                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${JSON.stringify(policy.detail, null, 2)}</pre>
+                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${renderJsonWithGuidLinks(policy.detail)}</pre>
                             </div>
                         </div>
                     `;

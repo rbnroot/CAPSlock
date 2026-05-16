@@ -388,6 +388,49 @@ async def analyze_gaps(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/convert")
+async def convert(
+    query: str = Query(..., description="Object ID (GUID) or display name / UPN"),
+    db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
+):
+    import re
+    from CAPSlock.query import convert_from_id, convert_from_name
+
+    try:
+        session = get_session(db_path)
+        guid_pattern = re.compile(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+            re.IGNORECASE,
+        )
+        if guid_pattern.match(query.strip()):
+            mode = "id"
+            lines = convert_from_id(session, query.strip())
+        else:
+            mode = "name"
+            lines = convert_from_name(session, query.strip())
+
+        results = []
+        for line in lines:
+            if line.startswith("[Unknown]"):
+                continue
+            try:
+                type_part, rest = line.split("]: ", 1)
+                obj_type = type_part.lstrip("[")
+                if " - " in rest:
+                    name, obj_id = rest.rsplit(" - ", 1)
+                else:
+                    name, obj_id = rest, ""
+                results.append({"type": obj_type, "name": name, "id": obj_id})
+            except Exception:
+                continue
+
+        session.close()
+        return {"query": query, "mode": mode, "results": results}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
