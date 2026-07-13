@@ -23,7 +23,8 @@ def _controls_lower(r: PolicyResult) -> List[str]:
 
 
 def _is_mfa(r: PolicyResult) -> bool:
-    return "mfa" in _controls_lower(r)
+    controls = _controls_lower(r)
+    return "mfa" in controls or "authstrength" in controls
 
 
 def _is_block(r: PolicyResult) -> bool:
