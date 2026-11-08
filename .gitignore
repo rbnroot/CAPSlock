@@ -36,3 +36,5 @@ dist/
 
 *.tmp
 *.out
+
+/tests/

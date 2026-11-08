@@ -419,35 +419,91 @@ def _eval_platform_condition(detail: Dict[str, Any], signin_ctx: SignInContext) 
     # If only excludes exist, treat includes as All
     return ConditionEval(matched=True, reason="Platform: not excluded (implicit All)")
 
+_CLIENT_APP_CATEGORIES = {
+    "browser": {"browser"},
+    "mobileappsanddesktopclients": {"native"},
+    "exchangeactivesync": {"eassupported", "easunsupported"},
+    "other": {
+        "otherlegacy", "legacysmtp", "legacypop", "legacyimap",
+        "legacymapi", "legacyoffice",
+    },
+}
+_CLIENT_APP_TYPES = set().union(*_CLIENT_APP_CATEGORIES.values())
+
+
+def _client_app_members(value: str) -> Set[str]:
+    value = str(value).strip().lower()
+    return _CLIENT_APP_CATEGORIES.get(value, {value})
+
+
+def _client_app_values(values) -> list:
+    # Accept a single stored value without splitting it into characters.
+    return [values] if isinstance(values, str) else (values or [])
+
+
+def _client_app_set(values: list) -> Tuple[Set[str], bool, List[str]]:
+    members: Set[str] = set()
+    includes_all = False
+    unknown: List[str] = []
+    for value in values:
+        if value is None or not str(value).strip():
+            continue
+        normalized = str(value).strip().lower()
+        if normalized == "all":
+            includes_all = True
+        elif normalized in _CLIENT_APP_TYPES or normalized in _CLIENT_APP_CATEGORIES:
+            members.update(_client_app_members(normalized))
+        else:
+            unknown.append(str(value).strip())
+    return members, includes_all, unknown
+
+
 def _eval_client_app_condition(detail: Dict[str, Any], signin_ctx: SignInContext) -> ConditionEval:
     cond = (detail.get("Conditions", {}) or {})
-
-    # Graph-style
-    cats = cond.get("ClientAppTypes") or []
-
-    # ROADrecon-style
+    inc_values = _client_app_values(cond.get("ClientAppTypes"))
+    exc_values = []
     ct = cond.get("ClientTypes") or {}
     if ct:
-        cats = []
-        for blk in (ct.get("Include") or []):
-            cats.extend(blk.get("ClientTypes") or [])
+        # Keep the existing preference for ROADrecon blocks when present.
+        inc_values = []
+        for blk in ct.get("Include") or []:
+            inc_values.extend(_client_app_values(blk.get("ClientTypes")))
+        for blk in ct.get("Exclude") or []:
+            exc_values.extend(_client_app_values(blk.get("ClientTypes")))
 
-    if not cats:
+    inc, inc_all, inc_unknown = _client_app_set(inc_values)
+    exc, exc_all, exc_unknown = _client_app_set(exc_values)
+    if exc_all:
+        return ConditionEval(matched=False, reason="ClientApp: excluded All")
+    if not (inc or inc_all or inc_unknown or exc or exc_unknown):
         return ConditionEval(matched=True, reason="ClientApp: no client app type condition present")
-
     if signin_ctx.client_app is None:
         return ConditionEval(matched=True, reason="ClientApp: scenario client_app not provided", runtime_dependent=True)
 
-    wanted = set([str(x).strip().lower() for x in cats if x])
     got = str(signin_ctx.client_app).strip().lower()
+    if got not in _CLIENT_APP_TYPES and got not in _CLIENT_APP_CATEGORIES:
+        return ConditionEval(matched=True, reason=f"ClientApp: unrecognized scenario client_app ({got})", runtime_dependent=True)
 
-    if "all" in wanted:
-        return ConditionEval(matched=True, reason="ClientApp: includes All")
-
-    if got in wanted:
+    scenario_members = _client_app_members(got)
+    implicit_all = not (inc or inc_all or inc_unknown)
+    included = scenario_members if inc_all or implicit_all else scenario_members & inc
+    # Unknown includes may cover otherwise unmatched subtypes; unknown excludes
+    # may remove known matches. Explicit exclusions always win.
+    possible = (scenario_members if inc_unknown else included) - exc
+    definite = (included - exc) if not exc_unknown else set()
+    if not possible:
+        return ConditionEval(matched=False, reason=f"ClientApp: no included, non-excluded subtype matched ({got})")
+    if scenario_members <= definite:
         return ConditionEval(matched=True, reason=f"ClientApp: matched ({got})")
 
-    return ConditionEval(matched=False, reason=f"ClientApp: did not match ({got})")
+    notes = []
+    if inc_unknown:
+        notes.append("unrecognized include value(s): " + ", ".join(inc_unknown))
+    if exc_unknown:
+        notes.append("unrecognized exclude value(s): " + ", ".join(exc_unknown))
+    if not notes:
+        notes.append("policy covers only part of category; actual protocol or subtype not provided")
+    return ConditionEval(matched=True, reason=f"ClientApp: signal-dependent ({got}); " + "; ".join(notes), runtime_dependent=True)
 
 def _eval_signin_risk_condition(detail: Dict[str, Any], signin_ctx: SignInContext) -> ConditionEval:
     cond = (detail.get("Conditions", {}) or {})
