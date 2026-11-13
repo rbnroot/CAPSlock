@@ -593,6 +593,11 @@
         }
         #guid-lookup-card .lookup-close:hover { color: #333; }
         #guid-lookup-card .lookup-body { max-height: 260px; overflow-y: auto; }
+        .hr-summary { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 0.9em; }
+        .hr-summary td { padding: 6px 10px; border: 1px solid #ddd; vertical-align: top; }
+        .hr-summary td:first-child { font-weight: 600; white-space: nowrap; width: 120px; background: #f9f9f9; }
+        .hr-summary tr.match-row td { background: #e8f5e9; border-color: #a5d6a7; }
+        .hr-summary tr.match-row td:first-child { background: #c8e6c9; }
     </style>
 </head>
 <body>
@@ -647,7 +652,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="gp-app">Application ID <small>(optional)</small></label>
-                                    <input type="text" id="gp-app" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                    <input type="text" id="gp-app" class="form-control" list="app-ids" placeholder="Start typing or select..." autocomplete="off">
                                 </div>
 
                                 <div class="form-group">
@@ -701,7 +706,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="wi-resource">Resource / App ID</label>
-                                    <input type="text" id="wi-resource" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                    <input type="text" id="wi-resource" class="form-control" list="app-ids" placeholder="Start typing or select..." autocomplete="off">
                                 </div>
 
                                 <div class="form-group">
@@ -737,11 +742,11 @@
 
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="wi-trusted-location">Trusted Location</label>
-                                    <select id="wi-trusted-location" class="form-control">
+                                    <label for="wi-location">Sign-in Location</label>
+                                    <select id="wi-location" class="form-control">
                                         <option value="">Not specified</option>
-                                        <option value="true">True</option>
-                                        <option value="false">False</option>
+                                        <option value="__trusted__">Some trusted location (not named)</option>
+                                        <option value="__untrusted__">Some untrusted location (not named)</option>
                                     </select>
                                 </div>
 
@@ -772,6 +777,7 @@
                                     <label for="wi-auth-flow">Auth Flow</label>
                                     <select id="wi-auth-flow" class="form-control">
                                         <option value="">Not specified</option>
+                                        <option value="interactive">Normal (interactive)</option>
                                         <option value="devicecodeflow">Device Code Flow</option>
                                         <option value="authtransfer">Auth Transfer</option>
                                     </select>
@@ -798,6 +804,17 @@
 
                             <div class="form-row">
                                 <div class="form-group">
+                                    <label for="wi-device-filter">Device Filter Match</label>
+                                    <select id="wi-device-filter" class="form-control">
+                                        <option value="">Not specified</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
                                     <label for="wi-assume-groups">Assume Groups <small>(comma-separated IDs or names)</small></label>
                                     <input type="text" id="wi-assume-groups" class="form-control" placeholder="IT Admins, Finance Team">
                                 </div>
@@ -805,6 +822,13 @@
                                 <div class="form-group">
                                     <label for="wi-assume-roles">Assume Roles <small>(comma-separated IDs or names)</small></label>
                                     <input type="text" id="wi-assume-roles" class="form-control" placeholder="Global Administrator, Intune Administrator">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="wi-exclude-groups">Exclude Groups <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="wi-exclude-groups" class="form-control" placeholder="IT Admins, Finance Team">
                                 </div>
                             </div>
 
@@ -841,7 +865,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="an-resource">Resource / App ID</label>
-                                    <input type="text" id="an-resource" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                    <input type="text" id="an-resource" class="form-control" list="app-ids" placeholder="Start typing or select..." autocomplete="off">
                                 </div>
 
                                 <div class="form-group">
@@ -871,11 +895,11 @@
 
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="an-trusted-location">Fixed Trusted Location <small>(optional)</small></label>
-                                    <select id="an-trusted-location" class="form-control">
+                                    <label for="an-location">Fixed Location <small>(optional)</small></label>
+                                    <select id="an-location" class="form-control">
                                         <option value="">Permute all</option>
-                                        <option value="true">True</option>
-                                        <option value="false">False</option>
+                                        <option value="__trusted__">Some trusted location (not named)</option>
+                                        <option value="__untrusted__">Some untrusted location (not named)</option>
                                     </select>
                                 </div>
 
@@ -915,6 +939,7 @@
                                     <label for="an-auth-flow">Fixed Auth Flow <small>(optional)</small></label>
                                     <select id="an-auth-flow" class="form-control">
                                         <option value="">Permute all</option>
+                                        <option value="interactive">Normal (interactive)</option>
                                         <option value="devicecodeflow">Device Code Flow</option>
                                         <option value="authtransfer">Auth Transfer</option>
                                     </select>
@@ -956,6 +981,10 @@
                                 <div class="form-group">
                                     <label for="an-assume-roles">Assume Roles <small>(comma-separated IDs or names)</small></label>
                                     <input type="text" id="an-assume-roles" class="form-control" placeholder="Global Administrator, Intune Administrator">
+                                </div>
+                                <div class="form-group">
+                                    <label for="an-exclude-groups">Exclude Groups <small>(comma-separated IDs or names)</small></label>
+                                    <input type="text" id="an-exclude-groups" class="form-control" placeholder="IT Admins, Finance Team">
                                 </div>
                             </div>
 
@@ -1023,8 +1052,86 @@
         </div>
     </div>
 
+    <datalist id="app-ids"></datalist>
+
     <script>
         let dbPath = 'roadrecon.db';
+        let nameMap = null;
+
+        const WELL_KNOWN_APPS = [
+            { id: 'All', name: 'All cloud apps' },
+            { id: '00000003-0000-0000-c000-000000000000', name: 'Microsoft Graph' },
+            { id: '00000002-0000-0000-c000-000000000000', name: 'Windows Azure Active Directory (Azure AD Graph)' },
+            { id: '797f4846-ba00-4fd7-ba43-dac1f8f63013', name: 'Windows Azure Service Management API' },
+            { id: '00000002-0000-0ff1-ce00-000000000000', name: 'Office 365 Exchange Online' },
+            { id: '00000003-0000-0ff1-ce00-000000000000', name: 'Office 365 SharePoint Online' },
+            { id: 'cc15fd57-2c6c-4117-a88c-83b1d56b4bbe', name: 'Microsoft Teams Services' },
+            { id: '0000000a-0000-0000-c000-000000000000', name: 'Microsoft Intune' },
+            { id: '00000009-0000-0000-c000-000000000000', name: 'Power BI Service' },
+            { id: 'c44b4083-3bb0-49c1-b47d-974e53cbdf3c', name: 'Azure Portal' },
+            { id: 'cfa8b339-82a2-471a-a3c9-0fc0be7a4093', name: 'Azure Key Vault' },
+            { id: 'c5393580-f805-4401-95e8-94b7a6ef2fc2', name: 'Office 365 Management APIs' },
+            { id: 'd4ebce55-015a-49b5-a083-c84d1797ae8c', name: 'Microsoft Intune Enrollment' },
+            { id: '0000000c-0000-0000-c000-000000000000', name: 'Microsoft App Access Panel' },
+            { id: 'e9f49c6b-5ce5-44c8-925d-015017e9f7ad', name: 'Azure Data Lake' },
+            // Client apps: used to show names only, not offered as a resource
+            { id: '1b730954-1685-4b74-9bfd-dac224a7b894', name: 'Azure Active Directory PowerShell', client: true },
+            { id: '04b07795-8ddb-461a-bbee-02f9e1bf7b46', name: 'Microsoft Azure CLI', client: true },
+            { id: '1950a258-227b-4e31-a9cf-717495945fc2', name: 'Microsoft Azure PowerShell', client: true },
+        ];
+
+        function populateAppDatalist() {
+            const dl = document.getElementById('app-ids');
+            const seen = new Set();
+            let html = '';
+
+            for (const app of WELL_KNOWN_APPS) {
+                if (app.client) continue;
+                seen.add(app.id);
+                html += `<option value="${escapeHtml(app.id)}" label="${escapeHtml(app.name)} (${escapeHtml(app.id)})"></option>`;
+            }
+
+            if (nameMap && nameMap.apps) {
+                const dbApps = Object.entries(nameMap.apps)
+                    .filter(([id]) => !seen.has(id))
+                    .sort((a, b) => a[1].localeCompare(b[1]));
+                for (const [id, name] of dbApps) {
+                    if (seen.has(id)) continue;
+                    seen.add(id);
+                    html += `<option value="${escapeHtml(id)}" label="${escapeHtml(name)} (${escapeHtml(id)})"></option>`;
+                }
+            }
+
+            dl.innerHTML = html;
+        }
+
+        function parseLocationDropdown(selectId) {
+            const val = document.getElementById(selectId).value;
+            if (!val) return { trusted_location: null, location_id: null };
+            if (val === '__trusted__') return { trusted_location: true, location_id: null };
+            if (val === '__untrusted__') return { trusted_location: false, location_id: null };
+            return { location_id: val, trusted_location: null };
+        }
+
+        function populateLocationDropdowns() {
+            const seen = new Set();
+            const locs = Object.entries((nameMap && nameMap.locations) || {})
+                .filter(([_, name]) => { if (seen.has(name)) return false; seen.add(name); return true; })
+                .sort((a, b) => a[1].localeCompare(b[1]));
+            for (const selId of ['wi-location', 'an-location']) {
+                const sel = document.getElementById(selId);
+                if (!sel) continue;
+                const existing = sel.querySelectorAll('option[data-db]');
+                existing.forEach(o => o.remove());
+                for (const [id, name] of locs) {
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = name;
+                    opt.setAttribute('data-db', '1');
+                    sel.appendChild(opt);
+                }
+            }
+        }
 
         // ── Global search / convert ──────────────────────────────────────────
         const GUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -1032,6 +1139,314 @@
 
         function escapeHtml(str) {
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        async function loadNameMap() {
+            if (nameMap) return;
+            try {
+                const params = new URLSearchParams({ db_path: dbPath });
+                const res = await fetch(`/api/names?${params}`);
+                if (res.ok) {
+                    nameMap = await res.json();
+                    populateAppDatalist();
+                    populateLocationDropdowns();
+                } else {
+                    console.warn('Name map request failed:', res.status, await res.text());
+                }
+            } catch (e) {
+                console.warn('Failed to load name map:', e);
+            }
+        }
+
+        function resolveName(guid) {
+            if (!guid) return null;
+            if (nameMap) {
+                const found = nameMap.users[guid] || nameMap.groups[guid] ||
+                       nameMap.roles_by_template[guid] || nameMap.roles_by_object[guid] ||
+                       nameMap.apps[guid] || nameMap.locations[guid] || null;
+                if (found) return found;
+            }
+            const wk = WELL_KNOWN_APPS.find(a => a.id === guid);
+            return wk ? wk.name : null;
+        }
+
+        function resolveOrRaw(guid) {
+            const name = resolveName(guid);
+            return name ? name : guid;
+        }
+
+        function formatTargetList(parts) {
+            if (!parts || parts.length === 0) return 'None';
+            return parts.map(p => escapeHtml(p)).join(', ');
+        }
+
+        function renderHumanReadable(detail, appliesReason) {
+            const conditions = detail?.Conditions;
+            if (!conditions) return '';
+
+            // Names and values come from the database: escape before inserting as HTML
+            const nameOf = id => escapeHtml(String(resolveOrRaw(id)));
+            const esc = v => escapeHtml(String(v));
+            const asList = v => typeof v === 'string' ? [v] : (v || []);
+            let rows = [];
+
+            if (appliesReason) {
+                let reasonHtml = escapeHtml(appliesReason);
+                const sigIdx = reasonHtml.indexOf(' | Signal-dependent:');
+                if (sigIdx !== -1) {
+                    const matchPart = reasonHtml.substring(0, sigIdx);
+                    const sigPart = reasonHtml.substring(sigIdx + 3);
+                    reasonHtml = matchPart + '<br><span style="color: #856404;">' + sigPart + '</span>';
+                }
+                rows.push(['Matched via', reasonHtml]);
+            }
+
+            const users = conditions.Users;
+            if (users) {
+                function collectTargets(blocks) {
+                    const u = [], g = [], r = [], sp = [], guestTypes = [];
+                    let allUsers = false, allGroups = false, guests = false;
+                    for (const block of blocks) {
+                        const ext = block.GuestsOrExternalUsers;
+                        if (ext) {
+                            const types = ext.GuestOrExternalUserTypes || '';
+                            const tenants = ext.ExternalTenants;
+                            let label = (Array.isArray(types) ? types.join(', ') : String(types)) || 'no types';
+                            if (Array.isArray(tenants) && tenants.length > 0) label += ` (from ${tenants.length} specific external tenant${tenants.length === 1 ? '' : 's'})`;
+                            guestTypes.push(label);
+                        }
+                        const blockUsers = block.Users || [];
+                        if (blockUsers.includes('All')) allUsers = true;
+                        if (blockUsers.includes('GuestsOrExternalUsers')) guests = true;
+                        // 'None' marks a workload identity policy
+                        blockUsers.filter(id => !['All', 'GuestsOrExternalUsers', 'None'].includes(id)).forEach(id => u.push(nameOf(id)));
+                        if (block.Groups?.includes('All')) allGroups = true;
+                        else if (block.Groups) block.Groups.forEach(id => g.push(nameOf(id)));
+                        const roles = block.Roles || block.DirectoryRoles || block.RoleTemplateIds || [];
+                        roles.forEach(id => r.push(nameOf(id)));
+                        if (block.ServicePrincipals) block.ServicePrincipals.forEach(id => sp.push(nameOf(id)));
+                    }
+                    const parts = [];
+                    if (allUsers) parts.push('All users');
+                    if (guests) parts.push('Guests or external users');
+                    guestTypes.forEach(t => parts.push('Guests or external users: ' + escapeHtml(t)));
+                    if (allGroups) parts.push('All groups');
+                    if (u.length > 0) parts.push('Users: ' + u.join(', '));
+                    if (g.length > 0) parts.push('Groups: ' + g.join(', '));
+                    if (r.length > 0) parts.push('Roles: ' + r.join(', '));
+                    if (sp.length > 0) parts.push('Service Principals: ' + sp.join(', '));
+                    return parts;
+                }
+                const incParts = collectTargets(users.Include || []);
+                const excParts = collectTargets(users.Exclude || []);
+                let val = '<strong>Including:</strong> ' + (incParts.length > 0 ? incParts.join(', ') : 'None');
+                if (excParts.length > 0) val += '<br><strong>Excluding:</strong> ' + excParts.join(', ');
+                rows.push(['Applies to', val]);
+            }
+
+            const sps = conditions.ServicePrincipals;
+            if (sps) {
+                let spInc = [], spExc = [];
+                let allSps = false;
+                for (const block of (sps.Include || [])) {
+                    if (block.ServicePrincipals?.includes('All')) allSps = true;
+                    else if (block.ServicePrincipals) block.ServicePrincipals.forEach(id => spInc.push(nameOf(id)));
+                }
+                for (const block of (sps.Exclude || [])) {
+                    if (block.ServicePrincipals) block.ServicePrincipals.forEach(id => spExc.push(nameOf(id)));
+                }
+                if (allSps || spInc.length > 0 || spExc.length > 0) {
+                    let val = '<strong>Including:</strong> ' + (allSps ? 'All service principals' : (spInc.length > 0 ? spInc.join(', ') : 'None'));
+                    if (spExc.length > 0) val += '<br><strong>Excluding:</strong> ' + spExc.join(', ');
+                    rows.push(['Service Principals', val]);
+                }
+            }
+
+            const apps = conditions.Applications;
+            if (apps) {
+                let incParts = [];
+                let excParts = [];
+                for (const block of (apps.Include || [])) {
+                    if (block.Applications?.includes('All')) incParts.push('All cloud apps');
+                    else if (block.Applications?.includes('None')) incParts.push('None');
+                    else if (block.Applications) block.Applications.forEach(a => incParts.push(nameOf(a)));
+                    if (block.Acrs) block.Acrs.forEach(a => incParts.push('Action: ' + esc(a)));
+                }
+                for (const block of (apps.Exclude || [])) {
+                    if (block.Applications) block.Applications.forEach(a => excParts.push(nameOf(a)));
+                }
+                let val = '<strong>Including:</strong> ' + (incParts.length > 0 ? incParts.join(', ') : 'None');
+                if (excParts.length > 0) val += '<br><strong>Excluding:</strong> ' + excParts.join(', ');
+                rows.push(['Resources', val]);
+            }
+
+            const locs = conditions.Locations;
+            if (locs) {
+                let locInc = [];
+                let locExc = [];
+                for (const block of (locs.Include || [])) {
+                    if (block.Locations) block.Locations.forEach(l => {
+                        if (l === 'All') locInc.push('All locations');
+                        else if (l === 'AllTrusted') locInc.push('All trusted locations');
+                        else locInc.push(nameOf(l));
+                    });
+                }
+                for (const block of (locs.Exclude || [])) {
+                    if (block.Locations) block.Locations.forEach(l => {
+                        if (l === 'AllTrusted') locExc.push('All trusted locations');
+                        else locExc.push(nameOf(l));
+                    });
+                }
+                if (locInc.length > 0 || locExc.length > 0) {
+                    let val = '';
+                    if (locInc.length > 0) val += '<strong>Including:</strong> ' + locInc.join(', ');
+                    if (locExc.length > 0) val += (val ? '<br>' : '') + '<strong>Excluding:</strong> ' + locExc.join(', ');
+                    rows.push(['Locations', val]);
+                }
+            }
+
+            const platforms = conditions.DevicePlatforms || conditions.Platforms;
+            if (platforms) {
+                let platInc = [];
+                let platExc = [];
+                for (const block of (platforms.Include || [])) {
+                    if (block.DevicePlatforms) {
+                        if (block.DevicePlatforms.includes('All')) platInc.push('All platforms');
+                        else platInc.push(...block.DevicePlatforms.map(esc));
+                    }
+                }
+                for (const block of (platforms.Exclude || [])) {
+                    if (block.DevicePlatforms) platExc.push(...block.DevicePlatforms.map(esc));
+                }
+                if (platInc.length > 0 || platExc.length > 0) {
+                    let val = '';
+                    if (platInc.length > 0) val += platInc.join(', ');
+                    if (platExc.length > 0) val += (val ? ', excluding ' : 'Excluding: ') + platExc.join(', ');
+                    rows.push(['Platforms', val]);
+                }
+            }
+
+            // roadrecon stores Entra's internal client type names. Show the Graph
+            // names the What-If form uses, and keep unrecognized values visible.
+            const CLIENT_APP_GROUPS = [
+                ['browser', ['browser']],
+                ['mobileAppsAndDesktopClients', ['native', 'mobileappsanddesktopclients']],
+                ['exchangeActiveSync', ['eassupported', 'easunsupported', 'exchangeactivesync']],
+                ['other', ['legacyimap', 'legacymapi', 'legacyoffice', 'legacypop', 'legacysmtp', 'otherlegacy', 'other']],
+            ];
+            const describeClientApps = (values) => {
+                const out = [];
+                const seen = new Set();
+                for (const v of values) {
+                    const key = String(v).trim().toLowerCase();
+                    if (key === 'all') { if (!seen.has('All')) { seen.add('All'); out.push('All'); } continue; }
+                    const group = CLIENT_APP_GROUPS.find(([, names]) => names.includes(key));
+                    const label = group ? group[0] : escapeHtml(String(v)) + ' (unrecognized)';
+                    if (!seen.has(label)) { seen.add(label); out.push(label); }
+                }
+                return out;
+            };
+            const clientTypes = conditions.ClientTypes || {};
+            let ctIncRaw = [...asList(conditions.ClientAppTypes)];
+            let ctExcRaw = [];
+            for (const block of (clientTypes.Include || [])) {
+                ctIncRaw.push(...asList(block.ClientTypes));
+            }
+            for (const block of (clientTypes.Exclude || [])) {
+                ctExcRaw.push(...asList(block.ClientTypes));
+            }
+            const ctInc = describeClientApps(ctIncRaw);
+            const ctExc = describeClientApps(ctExcRaw);
+            if (ctInc.length > 0 || ctExc.length > 0) {
+                let val = ctInc.join(', ');
+                if (ctExc.length > 0) val += (val ? ', excluding ' : 'Excluding: ') + ctExc.join(', ');
+                rows.push(['Client apps', val]);
+            }
+
+            for (const [condKey, label] of [['SignInRisks', 'Sign-in risk'], ['UserRisks', 'User risk'], ['AuthFlows', 'Auth flow']]) {
+                const section = conditions[condKey];
+                if (section) {
+                    let inc = [], exc = [];
+                    for (const block of (section.Include || [])) {
+                        if (block[condKey]) inc.push(...block[condKey].map(esc));
+                    }
+                    for (const block of (section.Exclude || [])) {
+                        if (block[condKey]) exc.push(...block[condKey].map(esc));
+                    }
+                    if (inc.length > 0 || exc.length > 0) {
+                        let val = inc.join(', ');
+                        if (exc.length > 0) val += (val ? ', excluding ' : 'Excluding: ') + exc.join(', ');
+                        rows.push([label, val]);
+                    }
+                }
+            }
+
+            const devices = conditions.Devices;
+            if (devices) {
+                let devInc = [];
+                let devExc = [];
+                for (const block of (devices.Include || [])) {
+                    if (block.DeviceRule) {
+                        devInc.push(block.DeviceRule === 'All' ? 'All devices' : 'Device rule: ' + esc(block.DeviceRule));
+                    }
+                }
+                for (const block of (devices.Exclude || [])) {
+                    if (block.DeviceRule) {
+                        devExc.push('Device rule: ' + esc(block.DeviceRule));
+                    }
+                }
+                if (devInc.length > 0 || devExc.length > 0) {
+                    let val = '';
+                    if (devInc.length > 0) val += '<strong>Including:</strong> ' + devInc.join(', ');
+                    if (devExc.length > 0) val += (val ? '<br>' : '') + '<strong>Excluding:</strong> ' + devExc.join(', ');
+                    rows.push(['Device Filter', val]);
+                }
+            }
+
+            const controls = detail.Controls;
+            let ctrlParts = [];
+            let operator = '';
+            if (controls && controls.length > 0) {
+                for (const block of controls) {
+                    const ctrl = block.Control || [];
+                    const ctrls = Array.isArray(ctrl) ? ctrl : [ctrl];
+                    ctrlParts.push(...ctrls.filter(c => c));
+                    if (block.AuthStrengthIds?.length > 0) ctrlParts.push('AuthStrength');
+                    const grant = block.GrantControls || [];
+                    const grants = Array.isArray(grant) ? grant : [grant];
+                    ctrlParts.push(...grants.filter(g => g));
+                    const sess = block.SessionControls || [];
+                    const sessions = Array.isArray(sess) ? sess : [sess];
+                    ctrlParts.push(...sessions.filter(s => s));
+                    if (block.Operator) operator = block.Operator;
+                }
+            }
+            const topSess = detail.SessionControls;
+            if (topSess) {
+                const items = Array.isArray(topSess) ? topSess : [topSess];
+                ctrlParts.push(...items.filter(s => s));
+            }
+            if (detail.SignInFrequencyTimeSpan) {
+                ctrlParts = ctrlParts.map(c => c === 'SignInFrequency'
+                    ? `SignInFrequency (Every ${detail.SignInFrequencyTimeSpan})`
+                    : c);
+            }
+            if (ctrlParts.length > 0) {
+                const unique = [...new Set(ctrlParts)];
+                let label = 'Controls';
+                if (operator) label += ` (${operator})`;
+                rows.push([label, formatTargetList(unique)]);
+            }
+
+            if (rows.length === 0) return '';
+
+            let html = '<table class="hr-summary">';
+            for (const [label, value] of rows) {
+                const rowClass = label === 'Matched via' ? ' class="match-row"' : '';
+                html += `<tr${rowClass}><td>${escapeHtml(label)}</td><td>${value}</td></tr>`;
+            }
+            html += '</table>';
+            return html;
         }
 
         function renderJsonWithGuidLinks(obj) {
@@ -1174,6 +1589,10 @@
 
         function saveSettings() {
             dbPath = document.getElementById('db-path').value || 'roadrecon.db';
+            nameMap = null;
+            populateAppDatalist();
+            populateLocationDropdowns();
+            loadNameMap();
             toggleSettings();
             alert('Settings saved');
         }
@@ -1197,6 +1616,7 @@
             const resultsDiv = document.getElementById('gp-results');
             resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
             resultsDiv.classList.add('show');
+            await loadNameMap();
 
             const user = document.getElementById('gp-user').value;
             const app = document.getElementById('gp-app').value;
@@ -1426,9 +1846,11 @@
             const resultsDiv = document.getElementById('wi-results');
             resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
             resultsDiv.classList.add('show');
+            await loadNameMap();
 
             const assumeGroupsValue = document.getElementById('wi-assume-groups').value;
             const assumeRolesValue = document.getElementById('wi-assume-roles').value;
+            const excludeGroupsValue = document.getElementById('wi-exclude-groups').value;
 
             const requestBody = {
                 user: document.getElementById('wi-user').value,
@@ -1436,8 +1858,7 @@
                 acr: document.getElementById('wi-acr').value || null,
                 platform: document.getElementById('wi-platform').value || null,
                 client_app: document.getElementById('wi-client-app').value || null,
-                trusted_location: document.getElementById('wi-trusted-location').value ?
-                    document.getElementById('wi-trusted-location').value === 'true' : null,
+                ...parseLocationDropdown('wi-location'),
                 signin_risk: document.getElementById('wi-signin-risk').value || null,
                 user_risk: document.getElementById('wi-user-risk').value || null,
                 auth_flow: document.getElementById('wi-auth-flow').value || null,
@@ -1445,8 +1866,11 @@
                     document.getElementById('wi-device-compliant').value === 'true' : null,
                 device_hybrid_joined: document.getElementById('wi-entra-joined').value ?
                     document.getElementById('wi-entra-joined').value === 'true' : null,
+                device_filter: document.getElementById('wi-device-filter').value ?
+                    document.getElementById('wi-device-filter').value === 'true' : null,
                 assume_groups: assumeGroupsValue ? assumeGroupsValue.split(',').map(g => g.trim()).filter(g => g) : null,
                 assume_roles: assumeRolesValue ? assumeRolesValue.split(',').map(r => r.trim()).filter(r => r) : null,
+                exclude_groups: excludeGroupsValue ? excludeGroupsValue.split(',').map(g => g.trim()).filter(g => g) : null,
                 db_path: dbPath
             };
 
@@ -1493,13 +1917,40 @@
                 html += '</div></div>';
             }
 
-            html += '<div class="scenario-box"><h4>Scenario Parameters</h4><div class="scenario-grid">';
-            for (const [key, value] of Object.entries(data.scenario)) {
-                if (value !== null) {
-                    html += `<div class="scenario-item"><span class="scenario-label">${key}:</span><span class="scenario-value">${value}</span></div>`;
-                }
+            if ((data.excluded_groups || []).length > 0) {
+                html += '<div class="scenario-box" style="background: #fff3cd; border-color: #ffc107;"><h4>Excluded Groups</h4><div class="scenario-grid">';
+                html += `<div class="scenario-item"><span class="scenario-label">Groups:</span><span class="scenario-value">${escapeHtml(data.excluded_groups.join(', '))}</span></div>`;
+                html += '</div></div>';
             }
-            html += '</div></div>';
+
+            const scenarioLabels = {
+                resource: 'Resource',
+                acr: 'User Action',
+                trusted_location: 'Trusted Location',
+                location_id: 'Location',
+                platform: 'Platform',
+                client_app: 'Client App',
+                signin_risk: 'Sign-in Risk',
+                user_risk: 'User Risk',
+                auth_flow: 'Auth Flow',
+                device_filter: 'Device Filter',
+                device_compliant: 'Device Compliant',
+                device_hybrid_joined: 'Hybrid Joined',
+            };
+            const s = data.scenario || {};
+            const scenarioItems = Object.entries(s)
+                .filter(([_, v]) => v !== null && v !== undefined)
+                .map(([k, v]) => {
+                    const label = scenarioLabels[k] || k;
+                    let displayVal = v;
+                    if (k === 'resource' || k === 'location_id') displayVal = resolveOrRaw(String(v));
+                    return `<div class="scenario-item"><span class="scenario-label">${escapeHtml(label)}:</span><span class="scenario-value">${escapeHtml(String(displayVal))}</span></div>`;
+                });
+            if (scenarioItems.length > 0) {
+                html += '<div class="scenario-box"><h4>Scenario Parameters</h4><div class="scenario-grid">';
+                html += scenarioItems.join('');
+                html += '</div></div>';
+            }
 
             html += '<div class="stats-grid">';
             html += `<div class="stat-card"><div class="stat-number">${data.counts.definitive}</div><div class="stat-label">Definitive</div></div>`;
@@ -1596,6 +2047,7 @@
             const resultsDiv = document.getElementById('an-results');
             resultsDiv.innerHTML = '<div class="loading">Analyzing scenarios... This may take a while.</div>';
             resultsDiv.classList.add('show');
+            await loadNameMap();
 
             const requestBody = {
                 user: document.getElementById('an-user').value,
@@ -1603,8 +2055,7 @@
                 acr: document.getElementById('an-acr').value || null,
                 max_scenarios: parseInt(document.getElementById('an-max-scenarios').value),
                 platform: document.getElementById('an-platform').value || null,
-                trusted_location: document.getElementById('an-trusted-location').value ?
-                    document.getElementById('an-trusted-location').value === 'true' : null,
+                ...parseLocationDropdown('an-location'),
                 client_app: document.getElementById('an-client-app').value || null,
                 signin_risk: document.getElementById('an-signin-risk').value || null,
                 user_risk: document.getElementById('an-user-risk').value || null,
@@ -1619,6 +2070,8 @@
                     document.getElementById('an-assume-groups').value.split(',').map(g => g.trim()).filter(g => g) : null,
                 assume_roles: document.getElementById('an-assume-roles').value ?
                     document.getElementById('an-assume-roles').value.split(',').map(r => r.trim()).filter(r => r) : null,
+                exclude_groups: document.getElementById('an-exclude-groups').value ?
+                    document.getElementById('an-exclude-groups').value.split(',').map(g => g.trim()).filter(g => g) : null,
                 db_path: dbPath
             };
 
@@ -1665,6 +2118,12 @@
                 if (summary.assumed_memberships.roles.length > 0) {
                     html += `<div class="scenario-item"><span class="scenario-label">Roles:</span><span class="scenario-value">${summary.assumed_memberships.roles.join(', ')}</span></div>`;
                 }
+                html += '</div></div>';
+            }
+
+            if ((summary.excluded_groups || []).length > 0) {
+                html += '<div class="scenario-box" style="background: #fff3cd; border-color: #ffc107;"><h4>Excluded Groups</h4><div class="scenario-grid">';
+                html += `<div class="scenario-item"><span class="scenario-label">Groups:</span><span class="scenario-value">${escapeHtml(summary.excluded_groups.join(', '))}</span></div>`;
                 html += '</div></div>';
             }
 
@@ -1723,7 +2182,7 @@
                                     const detailsId = `gap-${gapIndex}-def-${policyIndex}`;
                                     html += `
                                         <div style="margin-left: 12px; margin-bottom: 8px; padding: 8px; background: #f9f9f9; border-left: 3px solid #007bff; cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
-                                            <div style="font-weight: 500; font-size: 0.9em;">${policy.display_name}</div>
+                                            <div style="font-weight: 500; font-size: 0.9em;">${escapeHtml(policy.display_name || '')}</div>
                                             <div style="font-size: 0.8em; color: #666; margin-top: 4px;">
                                                 <span>State: ${policy.state}</span>
                                                 ${policy.effect ? ` | Effect: ${policy.effect}` : ''}
@@ -1731,8 +2190,11 @@
                                             </div>
                                             ${policy.detail ? `
                                                 <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
-                                                    <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
-                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                                    ${renderHumanReadable(policy.detail, policy.reason)}
+                                                    <details style="margin-top: 8px;">
+                                                        <summary style="cursor: pointer; font-size: 0.85em; color: #666; user-select: none;">Raw JSON</summary>
+                                                        <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc; margin-top: 8px;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                                    </details>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -1746,7 +2208,7 @@
                                     const detailsId = `gap-${gapIndex}-sig-${policyIndex}`;
                                     html += `
                                         <div style="margin-left: 12px; margin-bottom: 8px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107; cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
-                                            <div style="font-weight: 500; font-size: 0.9em;">${policy.display_name}</div>
+                                            <div style="font-weight: 500; font-size: 0.9em;">${escapeHtml(policy.display_name || '')}</div>
                                             <div style="font-size: 0.8em; color: #666; margin-top: 4px;">
                                                 <span>State: ${policy.state}</span>
                                                 ${policy.effect ? ` | Effect: ${policy.effect}` : ''}
@@ -1754,8 +2216,11 @@
                                             </div>
                                             ${policy.detail ? `
                                                 <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
-                                                    <h6 style="font-size: 0.85em; margin-bottom: 8px; font-weight: 600;">Full Policy Details</h6>
-                                                    <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                                    ${renderHumanReadable(policy.detail, policy.reason)}
+                                                    <details style="margin-top: 8px;">
+                                                        <summary style="cursor: pointer; font-size: 0.85em; color: #666; user-select: none;">Raw JSON</summary>
+                                                        <pre style="background: #fff; padding: 8px; overflow-x: auto; font-size: 0.75em; border: 1px solid #ccc; margin-top: 8px;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                                    </details>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -1829,7 +2294,7 @@
                     <div class="policy-item ${effectClass}" style="cursor: pointer;" onclick="togglePolicyDetails('${detailsId}')">
                         <div class="policy-header">
                             <div>
-                                <div class="policy-name">${policy.policy_name}</div>
+                                <div class="policy-name">${escapeHtml(policy.policy_name || '')}</div>
                                 <div class="policy-id">${policy.policy_id}</div>
                             </div>
                         </div>
@@ -1844,11 +2309,14 @@
                                 ${policy.controls.map(c => `<span class="control-tag">${c}</span>`).join('')}
                             </div>
                         ` : ''}
-                        <div class="policy-reason">${policy.applies_reason}</div>
+                        <div class="policy-reason">${escapeHtml(policy.applies_reason || '')}</div>
                         ${policy.detail ? `
                             <div id="${detailsId}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
-                                <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
-                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                ${renderHumanReadable(policy.detail, policy.applies ? policy.applies_reason : null)}
+                                <details style="margin-top: 8px;">
+                                    <summary style="cursor: pointer; font-size: 0.85em; color: #666; user-select: none;">Raw JSON</summary>
+                                    <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd; margin-top: 8px;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                </details>
                             </div>
                         ` : ''}
                     </div>
@@ -1860,6 +2328,7 @@
             const resultsDiv = document.getElementById('ap-results');
             resultsDiv.innerHTML = '<div class="loading">Loading all policies...</div>';
             resultsDiv.classList.add('show');
+            await loadNameMap();
 
             try {
                 const params = new URLSearchParams({ db_path: dbPath });
@@ -1914,16 +2383,46 @@
                     ? '<span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold;">TRUSTED</span>'
                     : '<span style="background: #6c757d; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold;">NOT TRUSTED</span>';
 
+                let detailsHtml = '';
+                if (loc.ip_ranges && loc.ip_ranges.length > 0) {
+                    detailsHtml += '<div style="margin-top: 8px;"><strong>IP Ranges:</strong></div>';
+                    detailsHtml += '<div style="margin-top: 4px; padding: 8px; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; font-family: monospace; font-size: 0.85em;">';
+                    detailsHtml += loc.ip_ranges.map(r => escapeHtml(String(typeof r === 'object' ? (r.CidrIpAddress || JSON.stringify(r)) : r))).join('<br>');
+                    detailsHtml += '</div>';
+                }
+                if (loc.countries && loc.countries.length > 0) {
+                    detailsHtml += '<div style="margin-top: 8px;"><strong>Countries/Regions:</strong></div>';
+                    detailsHtml += '<div style="margin-top: 4px; padding: 8px; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.85em;">';
+                    detailsHtml += loc.countries.map(c => escapeHtml(String(c))).join(', ');
+                    detailsHtml += '</div>';
+                }
+                if (loc.knp_entries && loc.knp_entries.length > 0) {
+                    detailsHtml += '<div style="margin-top: 8px;"><strong>Bundled Networks:</strong></div>';
+                    loc.knp_entries.forEach(knp => {
+                        const knpTrust = knp.is_trusted
+                            ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">TRUSTED</span>'
+                            : '<span style="background: #6c757d; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">NOT TRUSTED</span>';
+                        detailsHtml += `<div style="margin-top: 6px; padding: 8px; background: #fff; border: 1px solid #dee2e6; border-radius: 4px;">`;
+                        detailsHtml += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;"><strong>${escapeHtml(knp.name)}</strong> ${knpTrust}</div>`;
+                        detailsHtml += `<div style="font-size: 0.85em; color: #666; margin-bottom: 4px;"><strong>ID:</strong> <code>${escapeHtml(knp.id)}</code></div>`;
+                        if (knp.ip_ranges && knp.ip_ranges.length > 0) {
+                            detailsHtml += '<div style="font-family: monospace; font-size: 0.85em;">' + knp.ip_ranges.map(r => escapeHtml(String(r))).join('<br>') + '</div>';
+                        }
+                        detailsHtml += '</div>';
+                    });
+                }
+
                 html += `
                     <div style="border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-bottom: 12px; background: #f8f9fa;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <strong style="font-size: 1.1em;">${loc.name}</strong>
+                            <strong style="font-size: 1.1em;">${escapeHtml(loc.name)}</strong>
                             ${trustBadge}
                         </div>
                         <div style="font-size: 0.9em; color: #666;">
-                            <div style="margin-bottom: 4px;"><strong>ID:</strong> <code>${loc.id}</code></div>
+                            <div style="margin-bottom: 4px;"><strong>ID:</strong> <code>${escapeHtml(loc.id)}</code></div>
                             <div><strong>Type:</strong> ${loc.type}</div>
                         </div>
+                        ${detailsHtml}
                     </div>
                 `;
             });
@@ -1976,7 +2475,10 @@
             const reporting = data.policies.filter(p => p.state === 'Reporting').length;
             const disabled = data.policies.filter(p => p.state === 'Disabled').length;
 
-            html += '<p style="color: #888; font-size: 0.85em; margin-bottom: 12px;">Click on a card to filter policies</p>';
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">';
+            html += '<p style="color: #888; font-size: 0.85em; margin: 0;">Click on a card to filter policies</p>';
+            html += '<button class="btn btn-primary" onclick="toggleAllPolicyDetails(\'ap-results\')" style="font-size: 0.85em; padding: 4px 12px;">Expand All</button>';
+            html += '</div>';
 
             html += '<div class="stats-grid">';
             html += `<div class="stat-card ${currentFilter === 'all' ? 'active' : ''}" onclick="filterAllPolicies('all')" style="cursor: pointer;">
@@ -2033,7 +2535,7 @@
                         <div class="policy-item ${stateClass}" style="cursor: pointer;" onclick="togglePolicyDetails('policy-${policy.policy_id}')">
                             <div class="policy-header">
                                 <div>
-                                    <div class="policy-name">${policy.policy_name}</div>
+                                    <div class="policy-name">${escapeHtml(policy.policy_name || '')}</div>
                                     <div class="policy-id">${policy.policy_id}</div>
                                 </div>
                             </div>
@@ -2058,8 +2560,11 @@
                                 ` : ''}
                             </div>
                             <div id="policy-${policy.policy_id}" class="policy-details" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;" onclick="event.stopPropagation()">
-                                <h5 style="font-size: 0.9em; margin-bottom: 12px; font-weight: 600;">Full Policy Details</h5>
-                                <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                ${renderHumanReadable(policy.detail)}
+                                <details style="margin-top: 8px;">
+                                    <summary style="cursor: pointer; font-size: 0.85em; color: #666; user-select: none;">Raw JSON</summary>
+                                    <pre style="background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.8em; border: 1px solid #ddd; margin-top: 8px;">${renderJsonWithGuidLinks(policy.detail)}</pre>
+                                </details>
                             </div>
                         </div>
                     `;
@@ -2147,6 +2652,16 @@
             }
         }
 
+        function toggleAllPolicyDetails(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const details = container.querySelectorAll('.policy-details');
+            const allVisible = Array.from(details).every(d => d.style.display !== 'none');
+            details.forEach(d => d.style.display = allVisible ? 'none' : 'block');
+            const btn = container.querySelector('button[onclick*="toggleAllPolicyDetails"]');
+            if (btn) btn.textContent = allVisible ? 'Expand All' : 'Collapse All';
+        }
+
         function changeAllPoliciesPage(newPage) {
             if (!allPoliciesData) return;
             const data = allPoliciesData;
@@ -2178,6 +2693,20 @@
 
             changeAllPoliciesPage(pageNum);
         }
+
+        populateAppDatalist();
+
+        // Use the server's default DB path (set with 'web-gui --db') before loading names
+        fetch('/api/config')
+            .then(r => r.ok ? r.json() : null)
+            .then(cfg => {
+                if (cfg && cfg.db_path) {
+                    dbPath = cfg.db_path;
+                    document.getElementById('db-path').value = cfg.db_path;
+                }
+            })
+            .catch(() => {})
+            .finally(() => loadNameMap());
     </script>
 </body>
 </html>

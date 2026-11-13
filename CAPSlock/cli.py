@@ -4,20 +4,51 @@ import os
 import sys
 from CAPSlock.db import DB_PATH, get_session
 from CAPSlock.models import SignInContext
+from CAPSlock.conditions import LEGACY_MFA_TRUSTED_IPS_ID
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
-from CAPSlock.query import get_policy_results_for_user, convert_from_id, convert_from_name
+from CAPSlock.query import (
+    get_policy_results_for_user,
+    convert_from_id,
+    convert_from_name,
+    list_named_locations,
+    resolve_named_location,
+)
 from CAPSlock.printers import print_sections_get_policies, print_sections_what_if
+from CAPSlock.resolvers import build_name_resolver
 from CAPSlock.analyze import analyze, write_outputs
-from CAPSlock.query import convert_from_id, convert_from_name
 
 def _add_common_user_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-u", "--user", required=True, help="User UPN")
     p.add_argument("--db", default=DB_PATH, help="Path to roadrecon.db (default: roadrecon.db)")
 
 
+TRUSTED_LOCATION_HELP = (
+    "Sign in from some trusted (true) or untrusted (false) location without naming it. "
+    "Matches AllTrusted, but cannot match a specific named location: policies that include or "
+    "exclude specific locations with that trust status are shown as signal-dependent. "
+    "Use --location for a definitive answer. With --location, this overrides the location's trust status."
+)
+
+LOCATION_HELP = (
+    "Sign in from this named location (display name or ID, see 'list-locations'). "
+    "Matched against the location IDs that policies include or exclude. The sign-in is placed in this "
+    "one location; policies that list a location of the other kind (IP vs country) are shown as signal-dependent."
+)
+
+
+def _resolve_location_arg(session, value):
+    """Return (location_id, label) for --location, or (None, None) when not given."""
+    if not value:
+        return None, None
+    loc = resolve_named_location(session, value)
+    label = f"{loc['name']} ({loc['id']}) [{'trusted' if loc['is_trusted'] else 'not trusted'}]"
+    return loc["id"], label
+
+
 def cmd_get_policies(args) -> int:
     session = get_session(args.db)
     try:
+        resolver = build_name_resolver(session)
         signin_ctx = SignInContext(app_id=args.app)
 
         assume_groups = getattr(args, "assume_group", None) or []
@@ -31,6 +62,7 @@ def cmd_get_policies(args) -> int:
                 mode="get-policies",
                 assume_groups=assume_groups,
                 assume_roles=assume_roles,
+                resolver=resolver,
             )
         except ValueError as e:
             print(f"[!] {e}")
@@ -47,7 +79,7 @@ def cmd_get_policies(args) -> int:
                 print(f"  Roles:  {', '.join(assume_roles)}")
             print()
 
-        print_sections_get_policies(results, args.results.lower())
+        print_sections_get_policies(results, args.results.lower(), resolver=resolver)
         return 0
     finally:
         session.close()
@@ -56,14 +88,22 @@ def cmd_get_policies(args) -> int:
 def cmd_what_if(args) -> int:
     session = get_session(args.db)
     try:
+        resolver = build_name_resolver(session)
         # Policy can either be for resource or user action but not both
         if args.resource and args.acr:
             raise SystemExit("[!] Invalid scenario: --resource and --acr are mutually exclusive (choose one).")
+
+        try:
+            location_id, location_label = _resolve_location_arg(session, getattr(args, "location", None))
+        except ValueError as e:
+            print(f"[!] {e}")
+            return 1
 
         signin_ctx = SignInContext(
             app_id=normalize_unknown_str(args.resource),
             acr=normalize_unknown_str(args.acr),
             trusted_location=normalize_bool_str(args.trusted_location),
+            location_id=location_id,
             platform=(normalize_unknown_str(args.platform).lower() if normalize_unknown_str(args.platform) else None),
             client_app=normalize_unknown_str(args.client_app),
             signin_risk=(normalize_unknown_str(args.signin_risk).lower() if normalize_unknown_str(args.signin_risk) else None),
@@ -85,6 +125,7 @@ def cmd_what_if(args) -> int:
                 mode="what-if",
                 assume_groups=assume_groups,
                 assume_roles=assume_roles,
+                resolver=resolver,
             )
         except ValueError as e:
             print(f"[!] {e}")
@@ -104,6 +145,7 @@ def cmd_what_if(args) -> int:
         print("Scenario:")
         print(f"  resource:            {signin_ctx.app_id}")
         print(f"  acr:                 {signin_ctx.acr}")
+        print(f"  location:            {location_label}")
         print(f"  trusted_location:    {signin_ctx.trusted_location}")
         print(f"  platform:            {signin_ctx.platform}")
         print(f"  client_app:          {signin_ctx.client_app}")
@@ -115,7 +157,7 @@ def cmd_what_if(args) -> int:
         print(f"  device_hybrid_joined: {signin_ctx.device_hybrid_joined}")
         print()
 
-        print_sections_what_if(results, strict=bool(getattr(args, "strict", False)))
+        print_sections_what_if(results, strict=bool(getattr(args, "strict", False)), resolver=resolver)
         return 0
     finally:
         session.close()
@@ -137,53 +179,26 @@ def cmd_convert(args) -> int:
 
 
 def cmd_list_locations(args) -> int:
-    from CAPSlock.db import load_named_locations
-    from roadtools.roadlib.metadef.database import Policy
-    import json
-
     session = get_session(args.db)
     try:
-        location_trust_map = load_named_locations(session)
+        locations = list_named_locations(session)
 
-        locations = session.query(Policy).filter(Policy.policyType == 6).all()
-
-        if not locations:
+        if all(loc["id"] == LEGACY_MFA_TRUSTED_IPS_ID for loc in locations):
             print("No named locations found in database.")
             return 0
 
         print(f"\nNamed Locations ({len(locations)} total)")
         print("=" * 80)
 
-        locations_sorted = sorted(locations, key=lambda x: (x.displayName or "").lower())
-
-        for loc in locations_sorted:
-            is_trusted = location_trust_map.get(loc.objectId, False)
-            trust_label = "[TRUSTED]" if is_trusted else "[NOT TRUSTED]"
-
-            ip_ranges = []
-            countries = []
-            if loc.policyDetail:
-                for detail_raw in loc.policyDetail:
-                    try:
-                        detail = json.loads(detail_raw)
-                        if detail.get("IpRanges"):
-                            ip_ranges = detail["IpRanges"]
-                        if detail.get("CountriesAndRegions"):
-                            countries = detail["CountriesAndRegions"]
-                    except:
-                        pass
-
-            print(f"\n{loc.displayName}")
-            print(f"  ID:     {loc.objectId}")
+        for loc in locations:
+            trust_label = "[TRUSTED]" if loc["is_trusted"] else "[NOT TRUSTED]"
+            print(f"\n{loc['name']}")
+            print(f"  ID:     {loc['id']}")
             print(f"  Status: {trust_label}")
+            print(f"  Type:   {loc['type']}")
 
-            if ip_ranges:
-                print(f"  Type:   IP-based ({len(ip_ranges)} range{'s' if len(ip_ranges) != 1 else ''})")
-            elif countries:
-                print(f"  Type:   Country-based ({len(countries)} countr{'ies' if len(countries) != 1 else 'y'})")
-            else:
-                print(f"  Type:   Unknown")
-
+        print()
+        print("Use the name or ID with: capslock what-if --location <name|id>")
         print()
         return 0
     finally:
@@ -196,6 +211,12 @@ def cmd_analyze(args) -> int:
             raise SystemExit("[!] Invalid scenario: --resource and --acr are mutually exclusive (choose one).")
         if not args.resource and not args.acr:
             raise SystemExit("[!] Invalid scenario: you must provide --resource or --acr.")
+
+        try:
+            location_id, _ = _resolve_location_arg(session, getattr(args, "location", None))
+        except ValueError as e:
+            print(f"[!] {e}")
+            return 1
 
         base = SignInContext(
             app_id=normalize_unknown_str(args.resource),
@@ -213,6 +234,7 @@ def cmd_analyze(args) -> int:
 
         fixed = {
             "trusted_location": normalize_bool_str(getattr(args, "trusted_location", None)),
+            "location_id": location_id,
             "platform": (normalize_unknown_str(getattr(args, "platform", None)).lower() if normalize_unknown_str(getattr(args, "platform", None)) else None),
             "client_app": normalize_unknown_str(getattr(args, "client_app", None)),
             "signin_risk": (normalize_unknown_str(getattr(args, "signin_risk", None)).lower() if normalize_unknown_str(getattr(args, "signin_risk", None)) else None),
@@ -270,9 +292,19 @@ def cmd_web_gui(args) -> int:
 
     sys.path.insert(0, web_gui_dir)
 
+    if args.db:
+        db_path = os.path.abspath(args.db)
+        if not os.path.isfile(db_path):
+            print(f"[!] Database not found: {db_path}")
+            return 1
+        # Environment variable so the uvicorn worker (and --reload children) see it
+        os.environ["CAPSLOCK_DB"] = db_path
+
     print("=" * 64)
     print("Starting CAPSlock Web GUI")
     print("=" * 64)
+    if args.db:
+        print(f"DB:   {os.environ['CAPSLOCK_DB']}")
     print(f"Host: {args.host}")
     print(f"Port: {args.port}")
     print(f"URL:  http://{args.host}:{args.port}")
@@ -312,7 +344,8 @@ def build_parser() -> argparse.ArgumentParser:
     p2.add_argument("--resource", default="All", help="[Optional] Resource / cloud app / resource set (Default = All)")
     p2.add_argument("--acr", default=None, help="User action / ACR (e.g. urn:user:registerdevice) (optional)")
 
-    p2.add_argument("--trusted-location", default=None, choices=["true", "false"], help="[optional] Trusted location flag")
+    p2.add_argument("--location", default=None, metavar="NAME_OR_ID", help=LOCATION_HELP)
+    p2.add_argument("--trusted-location", default=None, choices=["true", "false"], help=TRUSTED_LOCATION_HELP)
     p2.add_argument("--platform", default="windows", choices=["windows", "macos", "linux", "ios", "android"], help="Device platform (Default = windows)")
     p2.add_argument("--client-app", default=None, choices=["browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"], help="Client app type (optional)")
     p2.add_argument("--signin-risk", default=None, choices=["none", "low", "medium", "high"], help="Sign-in risk level (optional)")
@@ -350,7 +383,8 @@ def build_parser() -> argparse.ArgumentParser:
     p4.add_argument("--resource", default=None, help="Resource / cloud app / resource set")
     p4.add_argument("--acr", default=None, help="User action / ACR (e.g. urn:user:registerdevice)")
 
-    p4.add_argument("--trusted-location", default=None, choices=["true", "false"], help="Trusted location flag (fixed if provided)")
+    p4.add_argument("--location", default=None, metavar="NAME_OR_ID", help=LOCATION_HELP + " (fixed if provided)")
+    p4.add_argument("--trusted-location", default=None, choices=["true", "false"], help=TRUSTED_LOCATION_HELP + " (fixed if provided)")
     p4.add_argument("--platform", default=None, choices=["windows", "macos", "linux", "ios", "android"], help="Device platform (fixed if provided)")
     p4.add_argument("--client-app", default=None, choices=["browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"], help="Client app type (fixed if provided)")
     p4.add_argument("--signin-risk", default=None, choices=["none", "low", "medium", "high"], help="Sign-in risk level (fixed if provided)")
@@ -374,6 +408,7 @@ def build_parser() -> argparse.ArgumentParser:
     p5.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     p5.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
     p5.add_argument("--reload", action="store_true", help="Enable auto-reload (for development)")
+    p5.add_argument("--db", default=None, help="Path to roadrecon.db used as the web GUI default (default: roadrecon.db)")
     p5.set_defaults(func=cmd_web_gui)
 
     return parser

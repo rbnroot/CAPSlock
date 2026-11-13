@@ -10,7 +10,8 @@ import os
 
 from CAPSlock.db import get_session, DB_PATH
 from CAPSlock.models import SignInContext
-from CAPSlock.query import get_policy_results_for_user
+from CAPSlock.query import canonical_location_id, get_policy_results_for_user
+from CAPSlock.resolvers import build_name_resolver
 from CAPSlock.analyze import analyze
 from CAPSlock.serializers import (
     categorize_get_policies_results,
@@ -42,6 +43,7 @@ class WhatIfRequest(BaseModel):
     resource: Optional[str] = Field(None, description="Resource/App ID")
     acr: Optional[str] = Field(None, description="Authentication Context Class Reference")
     trusted_location: Optional[bool] = Field(None, description="Trusted location flag")
+    location_id: Optional[str] = Field(None, description="Specific named location ID")
     platform: Optional[str] = Field(None, description="Device platform")
     client_app: Optional[str] = Field(None, description="Client app type")
     signin_risk: Optional[str] = Field(None, description="Sign-in risk level")
@@ -52,6 +54,7 @@ class WhatIfRequest(BaseModel):
     device_hybrid_joined: Optional[bool] = Field(None, description="Device hybrid joined flag")
     assume_groups: Optional[List[str]] = Field(None, description="Assumed group memberships")
     assume_roles: Optional[List[str]] = Field(None, description="Assumed role memberships")
+    exclude_groups: Optional[List[str]] = Field(None, description="Groups to exclude from membership")
     db_path: Optional[str] = Field(DB_PATH, description="Path to roadrecon.db")
 
 
@@ -60,6 +63,7 @@ class AnalyzeRequest(BaseModel):
     resource: Optional[str] = Field(None, description="Resource/App ID")
     acr: Optional[str] = Field(None, description="Authentication Context Class Reference")
     trusted_location: Optional[bool] = Field(None, description="Fixed trusted location (permuted if not provided)")
+    location_id: Optional[str] = Field(None, description="Specific named location ID")
     platform: Optional[str] = Field(None, description="Fixed platform (permuted if not provided)")
     client_app: Optional[str] = Field(None, description="Fixed client app (permuted if not provided)")
     signin_risk: Optional[str] = Field(None, description="Fixed sign-in risk (permuted if not provided)")
@@ -70,6 +74,7 @@ class AnalyzeRequest(BaseModel):
     device_hybrid_joined: Optional[bool] = Field(None, description="Device hybrid joined flag")
     assume_groups: Optional[List[str]] = Field(None, description="Assumed group memberships")
     assume_roles: Optional[List[str]] = Field(None, description="Assumed role memberships")
+    exclude_groups: Optional[List[str]] = Field(None, description="Groups to exclude from membership")
     max_scenarios: int = Field(1000, description="Maximum scenarios to evaluate")
     db_path: Optional[str] = Field(DB_PATH, description="Path to roadrecon.db")
 
@@ -85,53 +90,48 @@ async def health_check():
     return {"status": "healthy", "service": "CAPSlock API"}
 
 
+@app.get("/api/config")
+async def get_config():
+    return {"db_path": DB_PATH}
+
+
 @app.get("/api/locations")
 async def get_locations(
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
 ):
 
     try:
-        from CAPSlock.db import load_named_locations
-        from roadtools.roadlib.metadef.database import Policy
-        import json
+        from CAPSlock.query import describe_named_locations
 
         session = get_session(db_path)
-        location_trust_map = load_named_locations(session)
-        locations = session.query(Policy).filter(Policy.policyType == 6).all()
+        try:
+            return {"locations": describe_named_locations(session)}
+        finally:
+            session.close()
 
-        result = []
-        for loc in locations:
-            is_trusted = location_trust_map.get(loc.objectId, False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-            ip_ranges = []
-            countries = []
-            if loc.policyDetail:
-                for detail_raw in loc.policyDetail:
-                    try:
-                        detail = json.loads(detail_raw)
-                        if detail.get("IpRanges"):
-                            ip_ranges = detail["IpRanges"]
-                        if detail.get("CountriesAndRegions"):
-                            countries = detail["CountriesAndRegions"]
-                    except:
-                        pass
+@app.get("/api/names")
+async def get_names(
+    db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
+):
 
-            location_type = "Unknown"
-            if ip_ranges:
-                location_type = f"IP-based ({len(ip_ranges)} range{'s' if len(ip_ranges) != 1 else ''})"
-            elif countries:
-                location_type = f"Country-based ({len(countries)} countr{'ies' if len(countries) != 1 else 'y'})"
-
-            result.append({
-                "name": loc.displayName,
-                "id": loc.objectId,
-                "is_trusted": is_trusted,
-                "type": location_type,
-            })
-
-        session.close()
-        return {"locations": sorted(result, key=lambda x: x["name"].lower())}
+    try:
+        session = get_session(db_path)
+        try:
+            resolver = build_name_resolver(session)
+            return {
+                "users": resolver.user_names_by_id,
+                "groups": resolver.group_names_by_id,
+                "roles_by_template": resolver.role_names_by_template_id,
+                "roles_by_object": resolver.role_names_by_object_id,
+                "apps": resolver.app_names_by_id,
+                "locations": resolver.location_names_by_id,
+            }
+        finally:
+            session.close()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -247,6 +247,13 @@ async def get_policies(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _location_id_or_400(session, location_id):
+    try:
+        return canonical_location_id(session, location_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/what-if")
 async def what_if(request: WhatIfRequest):
 
@@ -264,6 +271,7 @@ async def what_if(request: WhatIfRequest):
             app_id=normalize_unknown_str(request.resource),
             acr=normalize_unknown_str(request.acr),
             trusted_location=request.trusted_location,
+            location_id=_location_id_or_400(session, request.location_id),
             platform=(request.platform.lower() if request.platform else None),
             client_app=request.client_app,
             signin_risk=(request.signin_risk.lower() if request.signin_risk else None),
@@ -282,6 +290,7 @@ async def what_if(request: WhatIfRequest):
                 mode="what-if",
                 assume_groups=request.assume_groups or [],
                 assume_roles=request.assume_roles or [],
+                exclude_groups=request.exclude_groups or [],
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -294,16 +303,20 @@ async def what_if(request: WhatIfRequest):
                 "groups": request.assume_groups or [],
                 "roles": request.assume_roles or [],
             },
+            "excluded_groups": request.exclude_groups or [],
             "scenario": {
                 "resource": signin_ctx.app_id,
                 "acr": signin_ctx.acr,
                 "trusted_location": signin_ctx.trusted_location,
+                "location_id": signin_ctx.location_id,
                 "platform": signin_ctx.platform,
                 "client_app": signin_ctx.client_app,
                 "signin_risk": signin_ctx.signin_risk,
                 "user_risk": signin_ctx.user_risk,
                 "auth_flow": signin_ctx.auth_flow,
                 "device_filter": signin_ctx.device_filter,
+                "device_compliant": signin_ctx.device_compliant,
+                "device_hybrid_joined": signin_ctx.device_hybrid_joined,
             },
             "applied_definitive": categorized["applied_definitive"],
             "applied_signal_dependent": categorized["applied_signal_dependent"],
@@ -358,6 +371,7 @@ async def analyze_gaps(request: AnalyzeRequest):
 
         fixed = {
             "trusted_location": request.trusted_location,
+            "location_id": _location_id_or_400(session, request.location_id),
             "platform": (request.platform.lower() if request.platform else None),
             "client_app": request.client_app,
             "signin_risk": (request.signin_risk.lower() if request.signin_risk else None),
@@ -366,15 +380,19 @@ async def analyze_gaps(request: AnalyzeRequest):
             "device_filter": request.device_filter,
         }
 
-        summary, gaps = analyze(
-            session=session,
-            user_upn=request.user,
-            base=base,
-            fixed=fixed,
-            max_scenarios=request.max_scenarios,
-            assume_groups=request.assume_groups or [],
-            assume_roles=request.assume_roles or [],
-        )
+        try:
+            summary, gaps = analyze(
+                session=session,
+                user_upn=request.user,
+                base=base,
+                fixed=fixed,
+                max_scenarios=request.max_scenarios,
+                assume_groups=request.assume_groups or [],
+                assume_roles=request.assume_roles or [],
+                exclude_groups=request.exclude_groups or [],
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         session.close()
         return {

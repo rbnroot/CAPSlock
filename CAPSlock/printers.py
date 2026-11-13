@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import List, Set, Tuple, Any, Dict
-from CAPSlock.models import PolicyResult
+from typing import List, Optional, Set, Tuple, Any, Dict
+from CAPSlock.models import PolicyResult, NameResolver
+from CAPSlock.resolvers import friendly_ids
 
 
 def _has_signal_dependent_note(reason: str | None) -> bool:
@@ -51,14 +52,19 @@ def _format_inc_exc(title: str, inc: list, exc: list, max_items: int = 6) -> lis
     return lines
 
 
-def render_conditions_summary(detail: dict) -> str:
+def render_conditions_summary(detail: dict, resolver: Optional[NameResolver] = None) -> str:
     cond = detail.get("Conditions") or {}
     out = []
 
+    def resolve(ids, kind):
+        if not resolver or not ids:
+            return ids
+        return friendly_ids(resolver, ids, kind)
+
     # Apps
     a_inc_b, a_exc_b = _cond_blocks(cond, "Applications")
-    a_inc = _flatten_list(a_inc_b, "Applications")
-    a_exc = _flatten_list(a_exc_b, "Applications")
+    a_inc = resolve(_flatten_list(a_inc_b, "Applications"), "app")
+    a_exc = resolve(_flatten_list(a_exc_b, "Applications"), "app")
     out += _format_inc_exc("Apps", a_inc, a_exc)
 
     # Users, Groups, Roles
@@ -66,20 +72,22 @@ def render_conditions_summary(detail: dict) -> str:
     u_inc = u.get("Include") or []
     u_exc = u.get("Exclude") or []
 
-    inc_users = _flatten_list(u_inc, "Users")
-    inc_groups = _flatten_list(u_inc, "Groups")
-    inc_roles = (
+    inc_users = resolve(_flatten_list(u_inc, "Users"), "user")
+    inc_groups = resolve(_flatten_list(u_inc, "Groups"), "group")
+    inc_roles = resolve(
         _flatten_list(u_inc, "DirectoryRoles")
         or _flatten_list(u_inc, "Roles")
-        or _flatten_list(u_inc, "RoleTemplateIds")
+        or _flatten_list(u_inc, "RoleTemplateIds"),
+        "role",
     )
 
-    exc_users = _flatten_list(u_exc, "Users")
-    exc_groups = _flatten_list(u_exc, "Groups")
-    exc_roles = (
+    exc_users = resolve(_flatten_list(u_exc, "Users"), "user")
+    exc_groups = resolve(_flatten_list(u_exc, "Groups"), "group")
+    exc_roles = resolve(
         _flatten_list(u_exc, "DirectoryRoles")
         or _flatten_list(u_exc, "Roles")
-        or _flatten_list(u_exc, "RoleTemplateIds")
+        or _flatten_list(u_exc, "RoleTemplateIds"),
+        "role",
     )
 
     if any([inc_users, inc_groups, inc_roles, exc_users, exc_groups, exc_roles]):
@@ -99,8 +107,8 @@ def render_conditions_summary(detail: dict) -> str:
 
     # Locations
     l_inc_b, l_exc_b = _cond_blocks(cond, "Locations")
-    l_inc = _flatten_list(l_inc_b, "Locations")
-    l_exc = _flatten_list(l_exc_b, "Locations")
+    l_inc = resolve(_flatten_list(l_inc_b, "Locations"), "location")
+    l_exc = resolve(_flatten_list(l_exc_b, "Locations"), "location")
     out += _format_inc_exc("Locations", l_inc, l_exc)
 
     # Device platform
@@ -176,7 +184,7 @@ def _fmt_set(vals: Set[str]) -> str:
     items = sorted(vals)
     return ", ".join(items)
 
-def print_full(r: PolicyResult, show_raw: bool = False):
+def print_full(r: PolicyResult, show_raw: bool = False, resolver: Optional[NameResolver] = None):
     print(f"- {r.policy.displayName} ({r.policy.objectId})")
     if r.state:
         print(f"  State:   {r.state}")
@@ -186,7 +194,7 @@ def print_full(r: PolicyResult, show_raw: bool = False):
         print(f"  Controls:{r.controls}")
     print(f"  Reason:  {r.applies_reason}")
 
-    print(render_conditions_summary(r.detail))
+    print(render_conditions_summary(r.detail, resolver=resolver))
 
     if show_raw:
         cond = r.detail.get("Conditions", {}) or {}
@@ -208,7 +216,7 @@ def print_minimal(r: PolicyResult):
     print()
 
 
-def print_sections_get_policies(results: List[PolicyResult], results_mode: str):
+def print_sections_get_policies(results: List[PolicyResult], results_mode: str, resolver: Optional[NameResolver] = None):
     applied: List[PolicyResult] = []
     excluded: List[PolicyResult] = []
     not_included: List[PolicyResult] = []
@@ -225,12 +233,12 @@ def print_sections_get_policies(results: List[PolicyResult], results_mode: str):
     if results_mode in ("applied", "all"):
         print("\n=== Applied ===\n")
         for r in applied:
-            print_full(r)
+            print_full(r, resolver=resolver)
 
     if results_mode in ("exclusions", "all"):
         print("\n=== Excluded ===\n")
         for r in excluded:
-            print_full(r)
+            print_full(r, resolver=resolver)
 
     if results_mode == "all":
         print("\n=== Not included / not targeted ===\n")
@@ -238,7 +246,7 @@ def print_sections_get_policies(results: List[PolicyResult], results_mode: str):
             print_minimal(r)
 
 
-def print_sections_what_if(results: List[PolicyResult], strict: bool):
+def print_sections_what_if(results: List[PolicyResult], strict: bool, resolver: Optional[NameResolver] = None):
     applied_all = [r for r in results if r.applies]
     applied_def = [r for r in applied_all if not _has_signal_dependent_note(r.applies_reason)]
     applied_rt = [r for r in applied_all if _has_signal_dependent_note(r.applies_reason)]
@@ -246,7 +254,7 @@ def print_sections_what_if(results: List[PolicyResult], strict: bool):
     print("\n=== Applied (definitive) ===\n")
     if applied_def:
         for r in applied_def:
-            print_full(r)
+            print_full(r, resolver=resolver)
     else:
         print("(none)\n")
 
@@ -256,6 +264,6 @@ def print_sections_what_if(results: List[PolicyResult], strict: bool):
     print("\n=== Applied (signal-dependent) ===\n")
     if applied_rt:
         for r in applied_rt:
-            print_full(r)
+            print_full(r, resolver=resolver)
     else:
         print("(none)\n")

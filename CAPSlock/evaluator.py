@@ -13,6 +13,7 @@ def evaluate_policy_detail(
     mode: str = "get-policies",
     resolver: Optional[object] = None,
     location_trust_map: Optional[Dict[str, bool]] = None,
+    location_kinds: Optional[Dict[str, str]] = None,
 ) -> PolicyResult:
     state = detail.get("State")
 
@@ -27,7 +28,7 @@ def evaluate_policy_detail(
             applies_reason=f"Not applicable: policy state is {state}",
         )
 
-    tgt = evaluate_user_targeting(detail, user_ctx)
+    tgt = evaluate_user_targeting(detail, user_ctx, resolver=resolver)
     if tgt.status != "included":
         return PolicyResult(
             applies=False,
@@ -58,7 +59,7 @@ def evaluate_policy_detail(
             applies_reason=tgt.applies_reason,
         )
 
-    matched_all, blockers, runtime_notes = evaluate_conditions(detail, signin_ctx, location_trust_map)
+    matched_all, blockers, runtime_notes = evaluate_conditions(detail, signin_ctx, location_trust_map, location_kinds)
     if not matched_all:
         reason = "Not applicable: " + "; ".join(blockers[:3]) + ("..." if len(blockers) > 3 else "")
         return PolicyResult(

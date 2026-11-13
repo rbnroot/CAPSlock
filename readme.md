@@ -161,8 +161,11 @@ python3 CAPSlock.py what-if -u <userprincipalname> --acr <user-action> [options]
   Optional. Path to the `roadrecon.db` file used for resolution.  
   Default: `roadrecon.db`  
 
+- `--location <name-or-id>`  
+  Optional. Sign in from this named location. Accepts a display name or ID; `python3 CAPSlock.py list-locations --db <path>` lists them. The sign-in is placed in this one location. If a policy lists a location of the other kind (IP range vs country) that the sign-in could also be in, the policy is shown as signal-dependent.
+
 - `--trusted-location <true|false>`  
-  Optional. Trusted location flag.
+  Optional. Sign in from some trusted (`true`) or untrusted (`false`) location without naming it. This matches `AllTrusted`, but not specific named locations: policies that include or exclude specific locations with that trust status are shown as signal-dependent. With `--location`, this overrides the trust status of that location.
 
 - `--platform <windows|macos|linux|ios|android>`  
   Optional. Device platform (Default = `windows`).
@@ -235,9 +238,12 @@ python3 CAPSlock.py analyze -u <userprincipalname> --acr <acr> [options]
   Optional. Path to the `roadrecon.db` file used for resolution.  
   Default: `roadrecon.db`
 
+- `--location <name-or-id>`  
+  Optional. Sign in from this named location, as for `what-if`. If provided, the location is fixed and its trust status is used for trusted-location gaps.
+
 - `--trusted-location <true|false>`  
-  Optional. Indicates whether the sign-in originates from a trusted location.  
-  If provided, the value is fixed; otherwise it is permuted.
+  Optional. Indicates whether the sign-in originates from a trusted location, as for `what-if`. It does not match specific named locations; use `--location` for that.  
+  If provided, the value is fixed; otherwise it is permuted (unless `--location` is given).
 
 - `--platform <windows|macos|linux|ios|android>`  
   Optional. Device platform.  
@@ -342,6 +348,12 @@ capslock-web [options]
 
 - `--reload`
   Optional. Enable auto-reload for development (server restarts when code changes are detected).
+
+- `--db <path>`
+  Optional. Path to the `roadrecon.db` the page uses by default. The path can still be changed in the page settings. `web-gui` only.
+  Default: `roadrecon.db` in the current directory
+
+The What-If and Analyze forms also take Exclude Groups: group names or IDs to remove from the user's memberships for that scenario. Unknown groups are rejected.
 
 ### Example Usage
 
