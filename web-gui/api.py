@@ -10,12 +10,13 @@ import uvicorn
 
 from CAPSlock.db import get_session, DB_PATH
 from CAPSlock.models import SignInContext
-from CAPSlock.query import get_policy_results_for_user
+from CAPSlock.query import get_policy_results_for_user, get_policy_results_for_sp
 from CAPSlock.analyze import analyze
 from CAPSlock.serializers import (
     categorize_get_policies_results,
     categorize_what_if_results,
     serialize_policy_results,
+    build_sp_policies_response,
 )
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
 
@@ -244,6 +245,34 @@ async def get_policies(
         session.close()
         return response
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sp-policies")
+async def get_sp_policies(
+    sp: str = Query(..., description="Service Principal name, objectId, or appId"),
+    app: Optional[str] = Query(None, description="Application ID filter"),
+    results: str = Query("applied", description="Results mode: applied, exclusions, or all"),
+    db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
+):
+    try:
+        session = get_session(db_path)
+        try:
+            sp_obj, policy_results = get_policy_results_for_sp(
+                session=session,
+                sp_identifier=sp,
+                signin_ctx=SignInContext(app_id=app),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        response = build_sp_policies_response(sp, sp_obj, policy_results, results)
+        session.close()
+        return response
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

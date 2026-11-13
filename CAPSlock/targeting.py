@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Any, Dict, Optional, Set
-from CAPSlock.models import UserContext, TargetingResult, NameResolver
+from typing import Any, Dict, List, Optional, Set
+from CAPSlock.models import UserContext, WorkloadContext, TargetingResult, NameResolver
 from CAPSlock.resolvers import friendly_ids
 
 
@@ -170,3 +170,84 @@ def evaluate_user_targeting(detail: Dict[str, Any], user_ctx: UserContext, resol
         matched_exclude_groups=[],
         matched_exclude_roles=[],
     )
+
+
+# Accept both "All" and "ServicePrincipalsInMyTenant" for "all service principals". MS Graph uses
+# ServicePrincipalsInMyTenant; the form roadrecon stores for this setting has not been seen in real data.
+SP_ALL_VALUES = {"all", "serviceprincipalsinmytenant"}
+
+
+def _sp_ids(blocks: List[Dict[str, Any]]) -> Set[str]:
+    return {s.strip().lower() for blk in blocks for s in (blk.get("ServicePrincipals") or [])}
+
+
+def _sp_filter_rules(blocks: List[Dict[str, Any]]) -> List[str]:
+    rules: List[str] = []
+    for blk in blocks:
+        rule = blk.get("ServicePrincipalFilterRule")
+        if isinstance(rule, list):
+            rules.extend(r for r in rule if r)
+        elif rule:
+            rules.append(rule)
+    return rules
+
+
+def _sp_result(status: str, reason: str, include_via: str = "", matched_include=None, matched_exclude=None) -> TargetingResult:
+    return TargetingResult(
+        status=status,
+        applies_reason=reason,
+        include_via=include_via,
+        matched_include_users=matched_include or [],
+        matched_include_groups=[],
+        matched_include_roles=[],
+        matched_exclude_users=matched_exclude or [],
+        matched_exclude_groups=[],
+        matched_exclude_roles=[],
+    )
+
+
+def evaluate_sp_targeting(detail: Dict[str, Any], wl_ctx: WorkloadContext) -> TargetingResult:
+    cond_sps = (detail.get("Conditions", {}) or {}).get("ServicePrincipals", {}) or {}
+    if not cond_sps:
+        return _sp_result("not_targeted", "Not a workload identity policy")
+
+    include_blocks = cond_sps.get("Include") or []
+    exclude_blocks = cond_sps.get("Exclude") or []
+    inc_sps = _sp_ids(include_blocks)
+    exc_sps = _sp_ids(exclude_blocks)
+    inc_rules = _sp_filter_rules(include_blocks)
+    exc_rules = _sp_filter_rules(exclude_blocks)
+
+    oid = (wl_ctx.object_id or "").lower()
+    name = getattr(wl_ctx.sp, "displayName", None) or wl_ctx.object_id
+
+    if oid in exc_sps:
+        return _sp_result("excluded", f"Excluded: service principal explicitly excluded ({name})",
+                          matched_exclude=[wl_ctx.object_id])
+
+    notes: List[str] = []
+    if oid in inc_sps:
+        reason = f"Included: service principal explicitly targeted ({name})"
+        via = "ServicePrincipal"
+    elif inc_sps & SP_ALL_VALUES or inc_rules:
+        if wl_ctx.in_scope is False:
+            return _sp_result("not_targeted", f"Not applicable: {wl_ctx.scope_reason}")
+        if inc_sps & SP_ALL_VALUES:
+            reason = "Included: All service principals"
+            via = "All service principals"
+        else:
+            reason = "Included: service principal filter rule"
+            via = "ServicePrincipalFilterRule"
+            notes.append(f"include filter rule cannot be evaluated offline ({'; '.join(inc_rules)})")
+        if wl_ctx.in_scope is None:
+            notes.append(wl_ctx.scope_reason)
+    else:
+        return _sp_result("not_targeted", "Not included: service principal not in include list")
+
+    if exc_rules:
+        notes.append(f"excluded if it matches filter rule ({'; '.join(exc_rules)})")
+    if notes:
+        reason += " | Signal-dependent: " + "; ".join(notes)
+
+    return _sp_result("included", reason, include_via=via,
+                      matched_include=[wl_ctx.object_id] if via == "ServicePrincipal" else [])

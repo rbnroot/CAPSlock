@@ -73,3 +73,32 @@ def categorize_what_if_results(results: List[PolicyResult]) -> Dict[str, Any]:
         "definitive_count": len(applied_definitive),
         "signal_dependent_count": len(applied_signal_dependent),
     }
+
+
+def build_sp_policies_response(sp_query: str, sp: Any, results: List[PolicyResult], results_mode: str) -> Dict[str, Any]:
+    """Response body for /api/sp-policies, shared by both web servers."""
+    categorized = categorize_get_policies_results(results)
+    response = {
+        "sp": sp_query,
+        "sp_display_name": sp.displayName or sp.objectId,
+        "sp_object_id": sp.objectId,
+        "sp_app_id": sp.appId or "",
+        "results_mode": results_mode,
+    }
+    if results_mode == "applied":
+        response.update(policies=categorized["applied"], count=categorized["applied_count"])
+    elif results_mode == "exclusions":
+        response.update(policies=categorized["excluded"], count=categorized["excluded_count"])
+    else:
+        response.update(
+            applied=categorized["applied"],
+            excluded=categorized["excluded"],
+            not_included=categorized["not_included"],
+            counts={
+                "applied": categorized["applied_count"],
+                "excluded": categorized["excluded_count"],
+                "not_included": categorized["not_included_count"],
+                "total": categorized["total_policies"],
+            },
+        )
+    return response

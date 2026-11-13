@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import List, Optional
 from sqlalchemy import func
-from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal
+from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal, TenantDetail
 from CAPSlock.db import load_capolicies, parse_policy_details, load_named_locations
-from CAPSlock.models import SignInContext, PolicyResult, UserContext
+from CAPSlock.models import SignInContext, PolicyResult, UserContext, WorkloadContext
 from CAPSlock.resolvers import build_name_resolver
-from CAPSlock.evaluator import evaluate_policy_detail
+from CAPSlock.evaluator import evaluate_policy_detail, evaluate_policy_detail_sp
 
 
 def _get_user_by_upn(session, upn: str) -> Optional[User]:
@@ -140,6 +140,67 @@ def get_policy_results_for_user(
             )
 
     return results
+
+
+def find_service_principal(session, identifier: str) -> ServicePrincipal:
+    ident = (identifier or "").strip()
+    for col in (ServicePrincipal.objectId, ServicePrincipal.appId):
+        sp = session.query(ServicePrincipal).filter(func.lower(col) == ident.lower()).one_or_none()
+        if sp:
+            return sp
+
+    matches = session.query(ServicePrincipal).filter(
+        func.lower(ServicePrincipal.displayName) == ident.lower()
+    ).all()
+    if not matches:
+        raise ValueError(f"Service principal not found: {ident}")
+    if len(matches) > 1:
+        ids = ", ".join(m.objectId for m in matches)
+        raise ValueError(f"{len(matches)} service principals are named '{ident}', use an objectId or appId: {ids}")
+    return matches[0]
+
+
+def sp_ca_scope(session, sp: ServicePrincipal):
+    """Entra applies workload identity CA only to single-tenant apps owned by the tenant.
+    Returns (True/False, reason), or (None, reason) when the DB can't tell."""
+    if (sp.servicePrincipalType or "").lower() == "managedidentity":
+        return False, "managed identity, CA does not apply to managed identities"
+    if sp.microsoftFirstParty:
+        return False, "Microsoft first-party app, CA only applies to single-tenant apps owned by the tenant"
+
+    tenant = session.query(TenantDetail.objectId).first()
+    tenant_id = (tenant[0] or "").lower() if tenant else ""
+    owner = (sp.appOwnerTenantId or "").lower()
+    if tenant_id and owner and owner != tenant_id:
+        return False, f"app is owned by another tenant ({sp.appOwnerTenantId}), CA only applies to single-tenant apps owned by the tenant"
+
+    app = session.query(Application).filter(Application.appId == sp.appId).first() if sp.appId else None
+    if app is not None:
+        if app.availableToOtherTenants:
+            return False, "multi-tenant app, CA only applies to single-tenant apps owned by the tenant"
+        return True, "single-tenant app registered in the tenant"
+    if tenant_id and owner == tenant_id:
+        return True, "app owned by the tenant"
+    return None, "cannot confirm from the DB that this is a single-tenant app owned by the tenant"
+
+
+def get_policy_results_for_sp(
+    session,
+    sp_identifier: str,
+    signin_ctx: Optional[SignInContext] = None,
+):
+    """Returns (service principal, results). signin_ctx is accepted for parity with get-policies and is unused."""
+    sp = find_service_principal(session, sp_identifier)
+    in_scope, scope_reason = sp_ca_scope(session, sp)
+    wl_ctx = WorkloadContext(sp=sp, object_id=sp.objectId, in_scope=in_scope, scope_reason=scope_reason)
+
+    results: List[PolicyResult] = []
+    for p in load_capolicies(session):
+        for d in parse_policy_details(p):
+            results.append(evaluate_policy_detail_sp(policy=p, detail=d, wl_ctx=wl_ctx))
+
+    return sp, results
+
 
 def convert_from_id(session, object_id: str) -> List[str]:
     out: List[str] = []

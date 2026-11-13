@@ -91,6 +91,15 @@ class TargetingResult:
 
 
 @dataclass
+class WorkloadContext:
+    sp: Any
+    object_id: str
+    # True/False if the DB shows whether CA can apply to this SP, None if it can't tell
+    in_scope: Optional[bool]
+    scope_reason: str
+
+
+@dataclass
 class ConditionEval:
     matched: bool
     reason: str
