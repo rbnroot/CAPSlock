@@ -215,6 +215,7 @@ async def get_policies(
                 "results_mode": results,
                 "policies": categorized["applied"],
                 "count": categorized["applied_count"],
+                "report_only": categorized["report_only"],
             }
         elif results == "exclusions":
             response = {
@@ -230,10 +231,12 @@ async def get_policies(
                 "assumed_memberships": assumed_memberships,
                 "results_mode": results,
                 "applied": categorized["applied"],
+                "report_only": categorized["report_only"],
                 "excluded": categorized["excluded"],
                 "not_included": categorized["not_included"],
                 "counts": {
                     "applied": categorized["applied_count"],
+                    "report_only": categorized["report_only_count"],
                     "excluded": categorized["excluded_count"],
                     "not_included": categorized["not_included_count"],
                     "total": categorized["total_policies"],
@@ -307,11 +310,13 @@ async def what_if(request: WhatIfRequest):
             },
             "applied_definitive": categorized["applied_definitive"],
             "applied_signal_dependent": categorized["applied_signal_dependent"],
+            "report_only": categorized["report_only"],
             "counts": {
                 "total": categorized["total_policies"],
                 "applied": categorized["applied_count"],
                 "definitive": categorized["definitive_count"],
                 "signal_dependent": categorized["signal_dependent_count"],
+                "report_only": categorized["report_only_count"],
             },
         }
 

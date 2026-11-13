@@ -198,7 +198,7 @@ def iter_scenarios(
     client_vals = _values_or_default(client_app, [None, "browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"])
     trusted_vals = _values_or_default(trusted_location, [None, True, False])
     signin_vals = _values_or_default(signin_risk, [None, "none", "low", "medium", "high"])
-    user_vals = _values_or_default(user_risk, [None, "low", "medium", "high"])
+    user_vals = _values_or_default(user_risk, [None, "none", "low", "medium", "high"])
     auth_vals = _values_or_default(auth_flow, [None, "devicecodeflow", "authtransfer"])
     device_filter_vals = _values_or_default(device_filter, [None, True, False])
 

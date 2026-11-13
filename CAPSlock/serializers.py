@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List
-from CAPSlock.models import PolicyResult
+from CAPSlock.models import PolicyResult, is_report_only
 
 
 def serialize_policy_result(result: PolicyResult) -> Dict[str, Any]:
@@ -25,12 +25,15 @@ def serialize_policy_results(results: List[PolicyResult]) -> List[Dict[str, Any]
 def categorize_get_policies_results(results: List[PolicyResult]) -> Dict[str, Any]:
     """Categorize get-policies results into applied, excluded, and not_included."""
     applied = []
+    report_only = []
     excluded = []
     not_included = []
 
     for r in results:
         serialized = serialize_policy_result(r)
-        if r.applies:
+        if r.applies and is_report_only(r):
+            report_only.append(serialized)
+        elif r.applies:
             applied.append(serialized)
         else:
             reason = (r.applies_reason or "").lower()
@@ -41,18 +44,21 @@ def categorize_get_policies_results(results: List[PolicyResult]) -> Dict[str, An
 
     return {
         "applied": applied,
+        "report_only": report_only,
         "excluded": excluded,
         "not_included": not_included,
         "total_policies": len(results),
         "applied_count": len(applied),
+        "report_only_count": len(report_only),
         "excluded_count": len(excluded),
         "not_included_count": len(not_included),
     }
 
 
 def categorize_what_if_results(results: List[PolicyResult]) -> Dict[str, Any]:
-    """Categorize what-if results into definitive and signal-dependent."""
-    applied_all = [r for r in results if r.applies]
+    """Categorize what-if results into enforced (definitive, signal-dependent) and report-only."""
+    applied_all = [r for r in results if r.applies and not is_report_only(r)]
+    report_only = [serialize_policy_result(r) for r in results if r.applies and is_report_only(r)]
 
     applied_definitive = []
     applied_signal_dependent = []
@@ -68,8 +74,10 @@ def categorize_what_if_results(results: List[PolicyResult]) -> Dict[str, Any]:
     return {
         "applied_definitive": applied_definitive,
         "applied_signal_dependent": applied_signal_dependent,
+        "report_only": report_only,
         "total_policies": len(results),
         "applied_count": len(applied_all),
         "definitive_count": len(applied_definitive),
         "signal_dependent_count": len(applied_signal_dependent),
+        "report_only_count": len(report_only),
     }

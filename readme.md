@@ -98,6 +98,8 @@ Each policy is evaluated against the user’s direct inclusion, group membership
 - Is excluded
 - Or does not target the user at all
 
+Report-only policies are listed in their own section in `get-policies` and `what-if`, and in a `report_only` list in the web API. The applied counts in the API do not include them.
+
 For each policy, CAPSlock explains the reasoning and summarizes the relevant conditions in a human-readable format.
 
 ### Syntax
@@ -173,7 +175,7 @@ python3 CAPSlock.py what-if -u <userprincipalname> --acr <user-action> [options]
 - `--signin-risk <none|low|medium|high>`  
   Optional. Sign-in risk level.
 
-- `--user-risk <low|medium|high>`  
+- `--user-risk <none|low|medium|high>`  
   Optional. User risk level.
 
 - `--auth-flow <devicecodeflow|authtransfer>`  
@@ -251,7 +253,7 @@ python3 CAPSlock.py analyze -u <userprincipalname> --acr <acr> [options]
   Optional. Sign-in risk level.  
   If not specified, all risk levels are permuted.
 
-- `--user-risk <low|medium|high>`  
+- `--user-risk <none|low|medium|high>`  
   Optional. User risk level.  
   If not specified, all risk levels are permuted.
 
