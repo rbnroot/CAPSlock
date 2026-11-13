@@ -93,7 +93,7 @@ Rather than answering *“what policies exist in the tenant?”*, this command a
 
 > **Which policies actually apply to this user, and why?**
 
-Each policy is evaluated against the user’s direct inclusion, group membership, and role-based targeting. The output clearly shows whether a policy:
+Each policy is evaluated against the user’s direct inclusion, group membership, and role-based targeting. Group membership includes nested groups, and roles include those assigned to role-assignable groups the user is in. The output clearly shows whether a policy:
 - Applies
 - Is excluded
 - Or does not target the user at all
