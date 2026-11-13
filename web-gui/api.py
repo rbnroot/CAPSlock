@@ -8,9 +8,12 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 import uvicorn
 
-from CAPSlock.db import get_session, DB_PATH
+import os
+
+from CAPSlock.db import get_session, DB_PATH as _DEFAULT_DB_PATH
 from CAPSlock.models import SignInContext
 from CAPSlock.query import canonical_location_id, get_policy_results_for_user
+from CAPSlock.resolvers import build_name_resolver
 from CAPSlock.analyze import analyze
 from CAPSlock.serializers import (
     categorize_get_policies_results,
@@ -18,6 +21,9 @@ from CAPSlock.serializers import (
     serialize_policy_results,
 )
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
+
+# Set by 'CAPSlock web-gui --db'
+DB_PATH = os.environ.get("CAPSLOCK_DB") or _DEFAULT_DB_PATH
 
 
 app = FastAPI(
@@ -53,6 +59,7 @@ class WhatIfRequest(BaseModel):
     device_hybrid_joined: Optional[bool] = Field(None, description="Device hybrid joined flag")
     assume_groups: Optional[List[str]] = Field(None, description="Assumed group memberships")
     assume_roles: Optional[List[str]] = Field(None, description="Assumed role memberships")
+    exclude_groups: Optional[List[str]] = Field(None, description="Groups to exclude from membership")
     db_path: Optional[str] = Field(DB_PATH, description="Path to roadrecon.db")
 
 
@@ -72,6 +79,7 @@ class AnalyzeRequest(BaseModel):
     device_hybrid_joined: Optional[bool] = Field(None, description="Device hybrid joined flag")
     assume_groups: Optional[List[str]] = Field(None, description="Assumed group memberships")
     assume_roles: Optional[List[str]] = Field(None, description="Assumed role memberships")
+    exclude_groups: Optional[List[str]] = Field(None, description="Groups to exclude from membership")
     max_scenarios: int = Field(1000, description="Maximum scenarios to evaluate")
     db_path: Optional[str] = Field(DB_PATH, description="Path to roadrecon.db")
 
@@ -88,6 +96,11 @@ async def health_check():
     return {"status": "healthy", "service": "CAPSlock API"}
 
 
+@app.get("/api/config")
+async def get_config():
+    return {"db_path": DB_PATH}
+
+
 @app.get("/api/locations")
 async def get_locations(
     db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
@@ -99,6 +112,30 @@ async def get_locations(
         session = get_session(db_path)
         try:
             return {"locations": describe_named_locations(session)}
+        finally:
+            session.close()
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/names")
+async def get_names(
+    db_path: str = Query(DB_PATH, description="Path to roadrecon.db"),
+):
+
+    try:
+        session = get_session(db_path)
+        try:
+            resolver = build_name_resolver(session)
+            return {
+                "users": resolver.user_names_by_id,
+                "groups": resolver.group_names_by_id,
+                "roles_by_template": resolver.role_names_by_template_id,
+                "roles_by_object": resolver.role_names_by_object_id,
+                "apps": resolver.app_names_by_id,
+                "locations": resolver.location_names_by_id,
+            }
         finally:
             session.close()
 
@@ -259,6 +296,7 @@ async def what_if(request: WhatIfRequest):
                 mode="what-if",
                 assume_groups=request.assume_groups or [],
                 assume_roles=request.assume_roles or [],
+                exclude_groups=request.exclude_groups or [],
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -271,6 +309,7 @@ async def what_if(request: WhatIfRequest):
                 "groups": request.assume_groups or [],
                 "roles": request.assume_roles or [],
             },
+            "excluded_groups": request.exclude_groups or [],
             "scenario": {
                 "resource": signin_ctx.app_id,
                 "acr": signin_ctx.acr,
@@ -282,6 +321,8 @@ async def what_if(request: WhatIfRequest):
                 "user_risk": signin_ctx.user_risk,
                 "auth_flow": signin_ctx.auth_flow,
                 "device_filter": signin_ctx.device_filter,
+                "device_compliant": signin_ctx.device_compliant,
+                "device_hybrid_joined": signin_ctx.device_hybrid_joined,
             },
             "applied_definitive": categorized["applied_definitive"],
             "applied_signal_dependent": categorized["applied_signal_dependent"],
@@ -345,15 +386,19 @@ async def analyze_gaps(request: AnalyzeRequest):
             "device_filter": request.device_filter,
         }
 
-        summary, gaps = analyze(
-            session=session,
-            user_upn=request.user,
-            base=base,
-            fixed=fixed,
-            max_scenarios=request.max_scenarios,
-            assume_groups=request.assume_groups or [],
-            assume_roles=request.assume_roles or [],
-        )
+        try:
+            summary, gaps = analyze(
+                session=session,
+                user_upn=request.user,
+                base=base,
+                fixed=fixed,
+                max_scenarios=request.max_scenarios,
+                assume_groups=request.assume_groups or [],
+                assume_roles=request.assume_roles or [],
+                exclude_groups=request.exclude_groups or [],
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         session.close()
         return {

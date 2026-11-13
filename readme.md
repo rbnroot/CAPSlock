@@ -349,6 +349,12 @@ capslock-web [options]
 - `--reload`
   Optional. Enable auto-reload for development (server restarts when code changes are detected).
 
+- `--db <path>`
+  Optional. Path to the `roadrecon.db` the page uses by default. The path can still be changed in the page settings. `web-gui` only.
+  Default: `roadrecon.db` in the current directory
+
+The What-If and Analyze forms also take Exclude Groups: group names or IDs to remove from the user's memberships for that scenario. Unknown groups are rejected.
+
 ### Example Usage
 
 ```bash

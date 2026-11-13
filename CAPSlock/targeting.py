@@ -54,7 +54,7 @@ def evaluate_user_targeting(detail: Dict[str, Any], user_ctx: UserContext, resol
         exc_roles.update(roles)
 
     matched_exc_users = [user_ctx.object_id] if user_ctx.object_id in exc_users else []
-    all_groups = user_ctx.groups | user_ctx.assumed_groups
+    all_groups = (user_ctx.groups | user_ctx.assumed_groups) - user_ctx.excluded_groups
     all_roles = user_ctx.role_object_ids | user_ctx.role_template_ids | user_ctx.assumed_roles
     matched_exc_groups = list(all_groups & exc_groups)
     matched_exc_roles = list(all_roles & exc_roles)

@@ -11,12 +11,15 @@ class UserContext:
     role_template_ids: Set[str]
     assumed_groups: Set[str] = None
     assumed_roles: Set[str] = None
+    excluded_groups: Set[str] = None
 
     def __post_init__(self):
         if self.assumed_groups is None:
             self.assumed_groups = set()
         if self.assumed_roles is None:
             self.assumed_roles = set()
+        if self.excluded_groups is None:
+            self.excluded_groups = set()
 
 
 @dataclass
@@ -64,6 +67,17 @@ class NameResolver:
     group_names_by_id: Dict[str, str]
     role_names_by_template_id: Dict[str, str]
     role_names_by_object_id: Dict[str, str]
+    user_names_by_id: Dict[str, str] = None
+    app_names_by_id: Dict[str, str] = None
+    location_names_by_id: Dict[str, str] = None
+
+    def __post_init__(self):
+        if self.user_names_by_id is None:
+            self.user_names_by_id = {}
+        if self.app_names_by_id is None:
+            self.app_names_by_id = {}
+        if self.location_names_by_id is None:
+            self.location_names_by_id = {}
 
     def group_name(self, gid: str) -> str:
         name = self.group_names_by_id.get(gid)
@@ -75,6 +89,20 @@ class NameResolver:
             or self.role_names_by_object_id.get(rid)
         )
         return f"{name} ({rid})" if name else rid
+
+    def user_name(self, uid: str) -> str:
+        name = self.user_names_by_id.get(uid)
+        return f"{name} ({uid})" if name else uid
+
+    def app_name(self, aid: str) -> str:
+        name = self.app_names_by_id.get(aid)
+        return f"{name} ({aid})" if name else aid
+
+    def location_name(self, lid: str) -> str:
+        if lid in ("All", "AllTrusted"):
+            return lid
+        name = self.location_names_by_id.get(lid)
+        return f"{name} ({lid})" if name else lid
 
 
 @dataclass

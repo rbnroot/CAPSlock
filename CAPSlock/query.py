@@ -6,7 +6,7 @@ from typing import List, Optional
 from sqlalchemy import func
 from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal, Policy
 from CAPSlock.db import load_capolicies, parse_policy_details, load_named_locations
-from CAPSlock.models import SignInContext, PolicyResult, UserContext
+from CAPSlock.models import SignInContext, PolicyResult, UserContext, NameResolver
 from CAPSlock.resolvers import build_name_resolver
 from CAPSlock.evaluator import evaluate_policy_detail
 
@@ -57,7 +57,7 @@ def _resolve_roles(session, role_identifiers: List[str]) -> tuple[set[str], List
 
     return resolved_ids, not_found
 
-def _build_user_context(session, user: User, assumed_groups: set[str] = None, assumed_roles: set[str] = None) -> UserContext:
+def _build_user_context(session, user: User, assumed_groups: set[str] = None, assumed_roles: set[str] = None, excluded_groups: set[str] = None) -> UserContext:
     groups = (
         session.query(Group)
         .join(Group.memberUsers)
@@ -86,6 +86,7 @@ def _build_user_context(session, user: User, assumed_groups: set[str] = None, as
         role_template_ids=role_template_ids,
         assumed_groups=assumed_groups if assumed_groups else set(),
         assumed_roles=assumed_roles if assumed_roles else set(),
+        excluded_groups=excluded_groups if excluded_groups else set(),
     )
 
 
@@ -96,6 +97,8 @@ def get_policy_results_for_user(
     mode: str = "get-policies",
     assume_groups: List[str] = None,
     assume_roles: List[str] = None,
+    exclude_groups: List[str] = None,
+    resolver: Optional[NameResolver] = None,
 ) -> List[PolicyResult]:
     if signin_ctx is None:
         signin_ctx = SignInContext()
@@ -107,6 +110,7 @@ def get_policy_results_for_user(
 
     assumed_group_ids = set()
     assumed_role_ids = set()
+    excluded_group_ids = set()
 
     if assume_groups:
         resolved_groups, not_found_groups = _resolve_groups(session, assume_groups)
@@ -120,9 +124,16 @@ def get_policy_results_for_user(
             raise ValueError(f"Roles not found in DB: {', '.join(not_found_roles)}")
         assumed_role_ids = resolved_roles
 
-    resolver = build_name_resolver(session)
+    if exclude_groups:
+        resolved_exc, not_found_exc = _resolve_groups(session, exclude_groups)
+        if not_found_exc:
+            raise ValueError(f"Groups not found in DB: {', '.join(not_found_exc)}")
+        excluded_group_ids = resolved_exc
 
-    uctx = _build_user_context(session, user, assumed_group_ids, assumed_role_ids)
+    if resolver is None:
+        resolver = build_name_resolver(session)
+
+    uctx = _build_user_context(session, user, assumed_group_ids, assumed_role_ids, excluded_group_ids)
     policies = load_capolicies(session)
 
     location_trust_map = load_named_locations(session)

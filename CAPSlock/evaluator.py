@@ -28,7 +28,7 @@ def evaluate_policy_detail(
             applies_reason=f"Not applicable: policy state is {state}",
         )
 
-    tgt = evaluate_user_targeting(detail, user_ctx)
+    tgt = evaluate_user_targeting(detail, user_ctx, resolver=resolver)
     if tgt.status != "included":
         return PolicyResult(
             applies=False,

@@ -10,6 +10,7 @@ from CAPSlock.conditions import _location_trust
 from CAPSlock.db import load_named_locations
 from CAPSlock.models import PolicyResult, SignInContext
 from CAPSlock.query import get_policy_results_for_user
+from CAPSlock.resolvers import build_name_resolver
 
 
 def _has_signal_dependent_note(reason: Optional[str]) -> bool:
@@ -238,6 +239,7 @@ def analyze(
     max_scenarios: int = 1000,
     assume_groups: Optional[List[str]] = None,
     assume_roles: Optional[List[str]] = None,
+    exclude_groups: Optional[List[str]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     gaps_out: List[Dict[str, Any]] = []
     gap_counts = {
@@ -247,6 +249,7 @@ def analyze(
     }
 
     scenarios_evaluated = 0
+    resolver = build_name_resolver(session)
 
     location_id = fixed.get("location_id")
     location_trusted = location_id is not None and bool(
@@ -272,6 +275,8 @@ def analyze(
             mode="what-if",
             assume_groups=assume_groups or [],
             assume_roles=assume_roles or [],
+            exclude_groups=exclude_groups or [],
+            resolver=resolver,
         )
         gaps = _classify_gaps(results, ctx, location_trusted)
         for g in gaps:
@@ -296,6 +301,7 @@ def analyze(
             "groups": assume_groups or [],
             "roles": assume_roles or [],
         },
+        "excluded_groups": exclude_groups or [],
     }
 
     return summary, gaps_out

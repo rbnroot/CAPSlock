@@ -14,6 +14,7 @@ from CAPSlock.query import (
     resolve_named_location,
 )
 from CAPSlock.printers import print_sections_get_policies, print_sections_what_if
+from CAPSlock.resolvers import build_name_resolver
 from CAPSlock.analyze import analyze, write_outputs
 
 def _add_common_user_args(p: argparse.ArgumentParser) -> None:
@@ -47,6 +48,7 @@ def _resolve_location_arg(session, value):
 def cmd_get_policies(args) -> int:
     session = get_session(args.db)
     try:
+        resolver = build_name_resolver(session)
         signin_ctx = SignInContext(app_id=args.app)
 
         assume_groups = getattr(args, "assume_group", None) or []
@@ -60,6 +62,7 @@ def cmd_get_policies(args) -> int:
                 mode="get-policies",
                 assume_groups=assume_groups,
                 assume_roles=assume_roles,
+                resolver=resolver,
             )
         except ValueError as e:
             print(f"[!] {e}")
@@ -76,7 +79,7 @@ def cmd_get_policies(args) -> int:
                 print(f"  Roles:  {', '.join(assume_roles)}")
             print()
 
-        print_sections_get_policies(results, args.results.lower())
+        print_sections_get_policies(results, args.results.lower(), resolver=resolver)
         return 0
     finally:
         session.close()
@@ -85,6 +88,7 @@ def cmd_get_policies(args) -> int:
 def cmd_what_if(args) -> int:
     session = get_session(args.db)
     try:
+        resolver = build_name_resolver(session)
         # Policy can either be for resource or user action but not both
         if args.resource and args.acr:
             raise SystemExit("[!] Invalid scenario: --resource and --acr are mutually exclusive (choose one).")
@@ -121,6 +125,7 @@ def cmd_what_if(args) -> int:
                 mode="what-if",
                 assume_groups=assume_groups,
                 assume_roles=assume_roles,
+                resolver=resolver,
             )
         except ValueError as e:
             print(f"[!] {e}")
@@ -152,7 +157,7 @@ def cmd_what_if(args) -> int:
         print(f"  device_hybrid_joined: {signin_ctx.device_hybrid_joined}")
         print()
 
-        print_sections_what_if(results, strict=bool(getattr(args, "strict", False)))
+        print_sections_what_if(results, strict=bool(getattr(args, "strict", False)), resolver=resolver)
         return 0
     finally:
         session.close()
@@ -287,9 +292,19 @@ def cmd_web_gui(args) -> int:
 
     sys.path.insert(0, web_gui_dir)
 
+    if args.db:
+        db_path = os.path.abspath(args.db)
+        if not os.path.isfile(db_path):
+            print(f"[!] Database not found: {db_path}")
+            return 1
+        # Environment variable so the uvicorn worker (and --reload children) see it
+        os.environ["CAPSLOCK_DB"] = db_path
+
     print("=" * 64)
     print("Starting CAPSlock Web GUI")
     print("=" * 64)
+    if args.db:
+        print(f"DB:   {os.environ['CAPSLOCK_DB']}")
     print(f"Host: {args.host}")
     print(f"Port: {args.port}")
     print(f"URL:  http://{args.host}:{args.port}")
@@ -393,6 +408,7 @@ def build_parser() -> argparse.ArgumentParser:
     p5.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     p5.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
     p5.add_argument("--reload", action="store_true", help="Enable auto-reload (for development)")
+    p5.add_argument("--db", default=None, help="Path to roadrecon.db used as the web GUI default (default: roadrecon.db)")
     p5.set_defaults(func=cmd_web_gui)
 
     return parser
