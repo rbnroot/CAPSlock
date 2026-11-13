@@ -67,7 +67,7 @@ def cmd_what_if(args) -> int:
             platform=(normalize_unknown_str(args.platform).lower() if normalize_unknown_str(args.platform) else None),
             client_app=normalize_unknown_str(args.client_app),
             signin_risk=(normalize_unknown_str(args.signin_risk).lower() if normalize_unknown_str(args.signin_risk) else None),
-            user_risk=(normalize_unknown_str(getattr(args, "user_risk", None)).lower() if normalize_unknown_str(getattr(args, "user_risk", None)) else None),
+            user_risk=(args.user_risk.lower() if getattr(args, "user_risk", None) else None),
             auth_flow=(normalize_unknown_str(getattr(args, "auth_flow", None)).lower() if normalize_unknown_str(getattr(args, "auth_flow", None)) else None),
             device_filter=normalize_bool_str(getattr(args, "device_filter", None)),
             device_hybrid_joined=normalize_bool_str(getattr(args, "entra_joined", None)),
@@ -216,7 +216,7 @@ def cmd_analyze(args) -> int:
             "platform": (normalize_unknown_str(getattr(args, "platform", None)).lower() if normalize_unknown_str(getattr(args, "platform", None)) else None),
             "client_app": normalize_unknown_str(getattr(args, "client_app", None)),
             "signin_risk": (normalize_unknown_str(getattr(args, "signin_risk", None)).lower() if normalize_unknown_str(getattr(args, "signin_risk", None)) else None),
-            "user_risk": (normalize_unknown_str(getattr(args, "user_risk", None)).lower() if normalize_unknown_str(getattr(args, "user_risk", None)) else None),
+            "user_risk": (args.user_risk.lower() if getattr(args, "user_risk", None) else None),
             "auth_flow": (normalize_unknown_str(getattr(args, "auth_flow", None)).lower() if normalize_unknown_str(getattr(args, "auth_flow", None)) else None),
             "device_filter": normalize_bool_str(getattr(args, "device_filter", None)),
         }
@@ -316,7 +316,7 @@ def build_parser() -> argparse.ArgumentParser:
     p2.add_argument("--platform", default="windows", choices=["windows", "macos", "linux", "ios", "android"], help="Device platform (Default = windows)")
     p2.add_argument("--client-app", default=None, choices=["browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"], help="Client app type (optional)")
     p2.add_argument("--signin-risk", default=None, choices=["none", "low", "medium", "high"], help="Sign-in risk level (optional)")
-    p2.add_argument("--user-risk", default=None, choices=["low", "medium", "high"], help="User risk level (optional)")
+    p2.add_argument("--user-risk", default=None, choices=["none", "low", "medium", "high"], help="User risk level (optional)")
     p2.add_argument("--auth-flow", default=None, choices=["devicecodeflow", "authtransfer"], help="Authentication flow (optional)")
     p2.add_argument("--device-filter", default=None, choices=["true", "false"], help="Device filter match flag (optional)")
 
@@ -354,7 +354,7 @@ def build_parser() -> argparse.ArgumentParser:
     p4.add_argument("--platform", default=None, choices=["windows", "macos", "linux", "ios", "android"], help="Device platform (fixed if provided)")
     p4.add_argument("--client-app", default=None, choices=["browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"], help="Client app type (fixed if provided)")
     p4.add_argument("--signin-risk", default=None, choices=["none", "low", "medium", "high"], help="Sign-in risk level (fixed if provided)")
-    p4.add_argument("--user-risk", default=None, choices=["low", "medium", "high"], help="User risk level (fixed if provided)")
+    p4.add_argument("--user-risk", default=None, choices=["none", "low", "medium", "high"], help="User risk level (fixed if provided)")
     p4.add_argument("--auth-flow", default=None, choices=["devicecodeflow", "authtransfer"], help="Authentication flow (fixed if provided)")
     p4.add_argument("--device-filter", default=None, choices=["true", "false"], help="Device filter match flag (fixed if provided)")
 

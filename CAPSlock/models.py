@@ -58,6 +58,15 @@ class PolicyResult:
     applies_reason: str
 
 
+# Policy state for "Report-only" in roadrecon policyDetail. Entra evaluates these policies and logs
+# the result, but never enforces their grant or session controls.
+REPORT_ONLY_STATE = "Reporting"
+
+
+def is_report_only(result: "PolicyResult") -> bool:
+    return (result.state or "") == REPORT_ONLY_STATE
+
+
 @dataclass
 class NameResolver:
     group_names_by_id: Dict[str, str]
@@ -88,6 +97,8 @@ class TargetingResult:
     matched_exclude_users: List[str] = None
     matched_exclude_groups: List[str] = None
     matched_exclude_roles: List[str] = None
+    # Targeting facts that cannot be checked offline (reported as signal-dependent)
+    runtime_notes: List[str] = None
 
 
 @dataclass

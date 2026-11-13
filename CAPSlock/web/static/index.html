@@ -762,6 +762,7 @@
                                     <label for="wi-user-risk">User Risk</label>
                                     <select id="wi-user-risk" class="form-control">
                                         <option value="">Not specified</option>
+                                        <option value="none">None</option>
                                         <option value="low">Low</option>
                                         <option value="medium">Medium</option>
                                         <option value="high">High</option>
@@ -905,6 +906,7 @@
                                     <label for="an-user-risk">Fixed User Risk <small>(optional)</small></label>
                                     <select id="an-user-risk" class="form-control">
                                         <option value="">Permute all</option>
+                                        <option value="none">None</option>
                                         <option value="low">Low</option>
                                         <option value="medium">Medium</option>
                                         <option value="high">High</option>
@@ -1259,12 +1261,16 @@
 
                 html += '<div class="stats-grid">';
                 html += `<div class="stat-card ${currentGetPoliciesFilter === 'all' ? 'active' : ''}" onclick="filterGetPolicies('all')" style="cursor: pointer;">
-                    <div class="stat-number">${data.counts.applied + data.counts.excluded + data.counts.not_included}</div>
+                    <div class="stat-number">${data.counts.applied + (data.counts.report_only || 0) + data.counts.excluded + data.counts.not_included}</div>
                     <div class="stat-label">All</div>
                 </div>`;
                 html += `<div class="stat-card ${currentGetPoliciesFilter === 'applied' ? 'active' : ''}" onclick="filterGetPolicies('applied')" style="cursor: pointer;">
                     <div class="stat-number">${data.counts.applied}</div>
                     <div class="stat-label">Applied</div>
+                </div>`;
+                html += `<div class="stat-card ${currentGetPoliciesFilter === 'report_only' ? 'active' : ''}" onclick="filterGetPolicies('report_only')" style="cursor: pointer;">
+                    <div class="stat-number">${data.counts.report_only || 0}</div>
+                    <div class="stat-label">Report-only (not enforced)</div>
                 </div>`;
                 html += `<div class="stat-card ${currentGetPoliciesFilter === 'excluded' ? 'active' : ''}" onclick="filterGetPolicies('excluded')" style="cursor: pointer;">
                     <div class="stat-number">${data.counts.excluded}</div>
@@ -1281,11 +1287,14 @@
                 let sectionTitle = 'All Policies';
 
                 if (currentGetPoliciesFilter === 'all') {
-                    filteredPolicies = [...(data.applied || []), ...(data.excluded || []), ...(data.not_included || [])];
+                    filteredPolicies = [...(data.applied || []), ...(data.report_only || []), ...(data.excluded || []), ...(data.not_included || [])];
                     sectionTitle = 'All Policies';
                 } else if (currentGetPoliciesFilter === 'applied') {
                     filteredPolicies = data.applied || [];
                     sectionTitle = 'Applied Policies';
+                } else if (currentGetPoliciesFilter === 'report_only') {
+                    filteredPolicies = data.report_only || [];
+                    sectionTitle = 'Report-only Policies (not enforced)';
                 } else if (currentGetPoliciesFilter === 'excluded') {
                     filteredPolicies = data.excluded || [];
                     sectionTitle = 'Excluded Policies';
@@ -1370,6 +1379,11 @@
                 } else {
                     html += renderPolicies(policies, 'gp');
                 }
+
+                if (data.report_only && data.report_only.length > 0) {
+                    html += `<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Report-only (not enforced) (${data.report_only.length})</h4>`;
+                    html += renderPolicies(data.report_only, 'gp-ro');
+                }
             }
 
             resultsDiv.innerHTML = html;
@@ -1383,9 +1397,11 @@
             if (data.results_mode === 'all') {
                 let filteredPolicies = [];
                 if (currentGetPoliciesFilter === 'all') {
-                    filteredPolicies = [...(data.applied || []), ...(data.excluded || []), ...(data.not_included || [])];
+                    filteredPolicies = [...(data.applied || []), ...(data.report_only || []), ...(data.excluded || []), ...(data.not_included || [])];
                 } else if (currentGetPoliciesFilter === 'applied') {
                     filteredPolicies = data.applied || [];
+                } else if (currentGetPoliciesFilter === 'report_only') {
+                    filteredPolicies = data.report_only || [];
                 } else if (currentGetPoliciesFilter === 'excluded') {
                     filteredPolicies = data.excluded || [];
                 } else if (currentGetPoliciesFilter === 'not_included') {
@@ -1504,6 +1520,7 @@
             html += '<div class="stats-grid">';
             html += `<div class="stat-card"><div class="stat-number">${data.counts.definitive}</div><div class="stat-label">Definitive</div></div>`;
             html += `<div class="stat-card"><div class="stat-number">${data.counts.signal_dependent}</div><div class="stat-label">Signal-Dependent</div></div>`;
+            html += `<div class="stat-card"><div class="stat-number">${data.counts.report_only || 0}</div><div class="stat-label">Report-only (not enforced)</div></div>`;
             html += '</div>';
 
             // Combine all policies for pagination
@@ -1557,7 +1574,13 @@
                     html += '</div>';
                 }
             } else {
-                html += '<div class="empty-state">No policies apply to this scenario</div>';
+                html += '<div class="empty-state">No enforced policies apply to this scenario</div>';
+            }
+
+            // Report-only policies are evaluated by Entra but never enforced
+            if (data.report_only && data.report_only.length > 0) {
+                html += `<h4 style="margin: 24px 0 16px 0; font-size: 1.1em;">Report-only (not enforced) (${data.report_only.length})</h4>`;
+                html += renderPolicies(data.report_only, 'wi-ro');
             }
 
             resultsDiv.innerHTML = html;
