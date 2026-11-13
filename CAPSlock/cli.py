@@ -5,7 +5,7 @@ import sys
 from CAPSlock.db import DB_PATH, get_session
 from CAPSlock.models import SignInContext
 from CAPSlock.normalize import normalize_bool_str, normalize_unknown_str
-from CAPSlock.query import get_policy_results_for_user, convert_from_id, convert_from_name
+from CAPSlock.query import get_policy_results_for_user, get_policy_results_for_sp, convert_from_id, convert_from_name
 from CAPSlock.printers import print_sections_get_policies, print_sections_what_if
 from CAPSlock.analyze import analyze, write_outputs
 from CAPSlock.query import convert_from_id, convert_from_name
@@ -46,6 +46,31 @@ def cmd_get_policies(args) -> int:
             if assume_roles:
                 print(f"  Roles:  {', '.join(assume_roles)}")
             print()
+
+        print_sections_get_policies(results, args.results.lower())
+        return 0
+    finally:
+        session.close()
+
+
+def cmd_sp_policies(args) -> int:
+    session = get_session(args.db)
+    try:
+        signin_ctx = SignInContext(app_id=args.app)
+
+        try:
+            sp, results = get_policy_results_for_sp(
+                session=session,
+                sp_identifier=args.sp,
+                signin_ctx=signin_ctx,
+            )
+        except ValueError as e:
+            print(f"[!] {e}")
+            return 1
+
+        print(f"\nWorkload identity policies for: {sp.displayName or sp.objectId}")
+        print(f"  objectId: {sp.objectId}  appId: {sp.appId or ''}")
+        print("=" * 64)
 
         print_sections_get_policies(results, args.results.lower())
         return 0
@@ -304,6 +329,14 @@ def build_parser() -> argparse.ArgumentParser:
     p1.add_argument("--assume-group", dest="assume_group", nargs="*", help="Assume user is in these groups (group IDs or names)")
     p1.add_argument("--assume-role", dest="assume_role", nargs="*", help="Assume user has these roles (role IDs, template IDs, or names)")
     p1.set_defaults(func=cmd_get_policies)
+
+    # sp-policies parser
+    p1b = sub.add_parser("sp-policies", help="List workload identity CA policies targeting a service principal")
+    p1b.add_argument("--sp", required=True, help="Service principal name, objectId, or appId")
+    p1b.add_argument("--db", default=DB_PATH, help="Path to roadrecon.db (default: roadrecon.db)")
+    p1b.add_argument("--app", default=None, help="Optional app id filter")
+    p1b.add_argument("--results", choices=["applied", "exclusions", "all"], default="applied")
+    p1b.set_defaults(func=cmd_sp_policies)
 
     # what-if parser
     p2 = sub.add_parser("what-if", help="Evaluate CA policies for a hypothetical sign-in context")

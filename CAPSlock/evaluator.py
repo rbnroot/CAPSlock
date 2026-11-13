@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Set, Optional
 from roadtools.roadlib.metadef.database import Policy
-from CAPSlock.models import PolicyResult, UserContext, SignInContext
-from CAPSlock.targeting import evaluate_user_targeting
+from CAPSlock.models import PolicyResult, UserContext, WorkloadContext, SignInContext
+from CAPSlock.targeting import evaluate_user_targeting, evaluate_sp_targeting
 from CAPSlock.conditions import evaluate_conditions
 
 def evaluate_policy_detail(
@@ -132,3 +132,27 @@ def _policy_controls(detail: Dict[str, Any]) -> List[str]:
             seen.add(n)
 
     return out
+
+
+def evaluate_policy_detail_sp(policy: Policy, detail: Dict[str, Any], wl_ctx: WorkloadContext) -> PolicyResult:
+    """Targeting only, like get-policies for users. Conditions are listed, not evaluated."""
+    state = detail.get("State")
+    if state not in ("Enabled", "Reporting"):
+        reason, tgt = f"Not applicable: policy state is {state}", None
+    else:
+        tgt = evaluate_sp_targeting(detail, wl_ctx)
+        reason = tgt.applies_reason
+
+    if tgt is None or tgt.status != "included":
+        return PolicyResult(applies=False, effect="Unknown", controls=[], state=state,
+                            policy=policy, detail=detail, applies_reason=reason)
+
+    controls = _policy_controls(detail)
+    effect = "Unknown"
+    if "block" in [c.lower() for c in controls]:
+        effect = "Block"
+    elif controls:
+        effect = "Grant"
+
+    return PolicyResult(applies=True, effect=effect, controls=controls, state=state,
+                        policy=policy, detail=detail, applies_reason=reason)

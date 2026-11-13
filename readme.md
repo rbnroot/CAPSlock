@@ -127,6 +127,38 @@ python3 CAPSlock.py get-policies -u <userprincipalname> [options]
 
 ---
 
+## sp-policies
+
+### What it does
+
+`sp-policies` lists the Conditional Access policies for workload identities that target a service principal. It works like `get-policies`, but checks the service principal conditions of each policy instead of the user conditions. The web GUI has the same view on the **SP Policies** page (`/api/sp-policies`).
+
+It checks targeting only. It lists the conditions of each policy, but it does not evaluate them, and there is no what-if for service principals.
+
+Limits:
+- Entra applies these policies only to single-tenant apps owned by the tenant. A policy that targets "All" service principals is marked as not applicable for managed identities, Microsoft first-party apps, multi-tenant apps and apps owned by another tenant. If the DB does not show which kind of app it is, the result is marked signal-dependent.
+- Policies that include or exclude service principals with a filter rule (custom security attributes) are marked signal-dependent, because the attribute values are not in the DB. The rule is shown in the reason.
+
+### Syntax
+
+```bash
+python3 CAPSlock.py sp-policies --sp <name|objectId|appId> [options]
+```
+
+If more than one service principal has the name, the command lists their objectIds. Run it again with one of them.
+
+### Additional Arguments
+
+- `--results <applied|exclusions|all>`
+  Optional. Policy Output Mode
+  Default: applied
+
+- `--db <path>`
+  Optional. Path to the `roadrecon.db` file used for resolution.
+  Default: `roadrecon.db`
+
+---
+
 ## what-if
 
 ### What it does

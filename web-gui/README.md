@@ -5,6 +5,7 @@ Web interface for CAPSlock - an offline Conditional Access policy analysis tool.
 ## Features
 
 - **Get Policies**: List all CA policies that apply to a specific user
+- **SP Policies**: List the workload identity CA policies that target a service principal
 - **What-If Analysis**: Test hypothetical sign-in scenarios
 - **Analyze Gaps**: Systematically search for CA enforcement gaps
 

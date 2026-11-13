@@ -617,6 +617,7 @@
             </div>
             <nav class="nav">
                 <a class="nav-item active" onclick="switchPage('get-policies')">Get Policies</a>
+                <a class="nav-item" onclick="switchPage('sp-policies')">SP Policies</a>
                 <a class="nav-item" onclick="switchPage('what-if')">What-If Analysis</a>
                 <a class="nav-item" onclick="switchPage('analyze')">Analyze Gaps</a>
                 <a class="nav-item" onclick="switchPage('all-policies')">All Policies</a>
@@ -678,6 +679,48 @@
                 </div>
 
                 <div id="gp-results" class="results"></div>
+            </div>
+
+            <!-- SP Policies Page -->
+            <div id="sp-policies" class="page">
+                <div class="page-header">
+                    <h2>SP Policies</h2>
+                    <p>List workload identity CA policies that target a specific service principal</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Query Parameters</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="spPoliciesForm" onsubmit="getSpPolicies(event)">
+                            <div class="form-group">
+                                <label for="sp-name">Service Principal <small>(name, objectId or appId, required)</small></label>
+                                <input type="text" id="sp-name" class="form-control" placeholder="Contoso Sync App or objectId" required>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sp-app">Application ID <small>(optional)</small></label>
+                                    <input type="text" id="sp-app" class="form-control" placeholder="00000000-0000-0000-0000-000000000000">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="sp-results-mode">Results Mode</label>
+                                    <select id="sp-results-mode" class="form-control">
+                                        <option value="applied">Applied Only</option>
+                                        <option value="exclusions">Exclusions Only</option>
+                                        <option value="all">All</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Execute Query</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="sp-results" class="results"></div>
             </div>
 
             <!-- What-If Page -->
@@ -1228,6 +1271,107 @@
             currentGetPoliciesFilter = 'all';
             currentGetPoliciesPage = 1;
             renderGetPolicies();
+        }
+
+        async function getSpPolicies(event) {
+            event.preventDefault();
+            const resultsDiv = document.getElementById('sp-results');
+            resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
+            resultsDiv.classList.add('show');
+
+            const sp = document.getElementById('sp-name').value;
+            const app = document.getElementById('sp-app').value;
+            const results = document.getElementById('sp-results-mode').value;
+
+            try {
+                const params = new URLSearchParams({ sp, results, db_path: dbPath });
+                if (app) params.append('app', app);
+
+                const response = await fetch(`/api/sp-policies?${params}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to fetch SP policies');
+                }
+
+                spPoliciesData = data;
+                currentSpPoliciesFilter = 'all';
+                currentSpPoliciesPage = 1;
+                renderSpPolicies();
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function filterSpPolicies(filter) {
+            currentSpPoliciesFilter = filter;
+            currentSpPoliciesPage = 1;
+            renderSpPolicies();
+        }
+
+        function changeSpPoliciesPage(page) {
+            currentSpPoliciesPage = page;
+            renderSpPolicies();
+        }
+
+        function renderSpPolicies() {
+            if (!spPoliciesData) return;
+            const data = spPoliciesData;
+            const resultsDiv = document.getElementById('sp-results');
+            let html = '<div class="results-header"><h3>Results</h3></div>';
+
+            if (data.sp_display_name) {
+                html += `<div class="scenario-box" style="background: #e8eaf6; border-color: #5c6bc0;"><h4>Service Principal</h4><div class="scenario-grid">`;
+                html += `<div class="scenario-item"><span class="scenario-label">Name:</span><span class="scenario-value">${escapeHtml(data.sp_display_name)}</span></div>`;
+                if (data.sp_object_id) html += `<div class="scenario-item"><span class="scenario-label">ObjectId:</span><span class="scenario-value" style="font-family:monospace;font-size:0.85em;">${escapeHtml(data.sp_object_id)}</span></div>`;
+                if (data.sp_app_id) html += `<div class="scenario-item"><span class="scenario-label">AppId:</span><span class="scenario-value" style="font-family:monospace;font-size:0.85em;">${escapeHtml(data.sp_app_id)}</span></div>`;
+                html += '</div></div>';
+            }
+
+            if (data.results_mode === 'all') {
+                html += '<p style="color: #888; font-size: 0.85em; margin-bottom: 12px;">Click on a card to filter policies</p>';
+                html += '<div class="stats-grid">';
+                html += `<div class="stat-card ${currentSpPoliciesFilter === 'all' ? 'active' : ''}" onclick="filterSpPolicies('all')" style="cursor: pointer;"><div class="stat-number">${data.counts.applied + data.counts.excluded + data.counts.not_included}</div><div class="stat-label">All</div></div>`;
+                html += `<div class="stat-card ${currentSpPoliciesFilter === 'applied' ? 'active' : ''}" onclick="filterSpPolicies('applied')" style="cursor: pointer;"><div class="stat-number">${data.counts.applied}</div><div class="stat-label">Applied</div></div>`;
+                html += `<div class="stat-card ${currentSpPoliciesFilter === 'excluded' ? 'active' : ''}" onclick="filterSpPolicies('excluded')" style="cursor: pointer;"><div class="stat-number">${data.counts.excluded}</div><div class="stat-label">Excluded</div></div>`;
+                html += `<div class="stat-card ${currentSpPoliciesFilter === 'not_included' ? 'active' : ''}" onclick="filterSpPolicies('not_included')" style="cursor: pointer;"><div class="stat-number">${data.counts.not_included}</div><div class="stat-label">Not Targeted</div></div>`;
+                html += '</div>';
+
+                let filteredPolicies = [];
+                if (currentSpPoliciesFilter === 'all') filteredPolicies = [...(data.applied || []), ...(data.excluded || []), ...(data.not_included || [])];
+                else if (currentSpPoliciesFilter === 'applied') filteredPolicies = data.applied || [];
+                else if (currentSpPoliciesFilter === 'excluded') filteredPolicies = data.excluded || [];
+                else if (currentSpPoliciesFilter === 'not_included') filteredPolicies = data.not_included || [];
+
+                if (filteredPolicies.length > 0) {
+                    const totalPages = Math.ceil(filteredPolicies.length / policiesPerPage);
+                    currentSpPoliciesPage = Math.min(Math.max(currentSpPoliciesPage, 1), totalPages);
+                    const startIdx = (currentSpPoliciesPage - 1) * policiesPerPage;
+                    const endIdx = Math.min(startIdx + policiesPerPage, filteredPolicies.length);
+                    let pager = '';
+                    if (totalPages > 1) {
+                        pager += '<div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0; padding: 12px; background: #f9f9f9; border: 1px solid #ddd;">';
+                        pager += `<div style="color: #666; font-size: 0.9em;">Showing ${startIdx + 1}-${endIdx} of ${filteredPolicies.length} policies (Page ${currentSpPoliciesPage} of ${totalPages})</div>`;
+                        pager += '<div style="display: flex; align-items: center; gap: 8px;">';
+                        pager += `<button class="btn btn-primary" onclick="changeSpPoliciesPage(${currentSpPoliciesPage - 1})" ${currentSpPoliciesPage === 1 ? 'disabled' : ''}>Previous</button>`;
+                        pager += `<button class="btn btn-primary" onclick="changeSpPoliciesPage(${currentSpPoliciesPage + 1})" ${currentSpPoliciesPage === totalPages ? 'disabled' : ''}>Next</button>`;
+                        pager += '</div></div>';
+                    }
+                    html += pager + renderPolicies(filteredPolicies.slice(startIdx, endIdx), 'sp') + pager;
+                } else {
+                    html += '<p style="color: #888; margin-top: 16px;">No policies in this category.</p>';
+                }
+            } else {
+                const policies = data.policies || [];
+                html += `<div class="stats-grid"><div class="stat-card"><div class="stat-number">${data.count || policies.length}</div><div class="stat-label">Policies</div></div></div>`;
+                if (policies.length > 0) {
+                    html += renderPolicies(policies, 'sp');
+                } else {
+                    html += '<p style="color: #888; margin-top: 16px;">No matching policies found.</p>';
+                }
+            }
+
+            resultsDiv.innerHTML = html;
         }
 
         function filterGetPolicies(filter) {
@@ -1942,6 +2086,9 @@
         let getPoliciesData = null;
         let currentGetPoliciesFilter = 'all';
         let currentGetPoliciesPage = 1;
+        let spPoliciesData = null;
+        let currentSpPoliciesFilter = 'all';
+        let currentSpPoliciesPage = 1;
         const policiesPerPage = 50;
 
         // What-If state
