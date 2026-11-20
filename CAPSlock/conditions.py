@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from CAPSlock.models import SignInContext, ConditionEval
 
 def _get_apps_from_condition(detail: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
@@ -107,13 +107,58 @@ def _eval_acr_condition(detail: Dict[str, Any], signin_ctx: SignInContext, mode:
 
     return ConditionEval(matched=False, reason=f"ACR: scenario acr did not match policy ({signin_ctx.acr})")
 
-def _eval_trusted_location_condition(detail: Dict[str, Any], signin_ctx: SignInContext, location_trust_map: Dict[str, bool] = None) -> ConditionEval:
+# Legacy "MFA trusted IPs" pseudo-location. Policies reference it by this ID; it is part of
+# AllTrusted, but roadrecon does not export it as a named location.
+LEGACY_MFA_TRUSTED_IPS_ID = "00000000-0000-0000-0000-000000000000"
+
+
+def _location_trust(location_id: str, location_trust_map: Dict[str, bool]) -> Optional[bool]:
+    """Trust status of a named location: True, False, or None when unknown."""
+    if location_id == "AllTrusted" or location_id == LEGACY_MFA_TRUSTED_IPS_ID:
+        return True
+    return location_trust_map.get(location_id)
+
+
+def _may_overlap(location_id: str, other_id: str, location_kinds: Dict[str, str]) -> bool:
+    """True when a sign-in at location_id could also be inside other_id.
+
+    A sign-in has one IP and one country, so it can be in an IP-based and a country-based
+    location at the same time. Locations of the same kind are treated as separate.
+    AllTrusted and the legacy MFA trusted IPs are IP-based.
+    """
+    def kind(l: str) -> Optional[str]:
+        if l == "AllTrusted" or l == LEGACY_MFA_TRUSTED_IPS_ID:
+            return "ip"
+        return location_kinds.get(l)
+    a, b = kind(location_id), kind(other_id)
+    return location_id != other_id and a is not None and b is not None and a != b
+
+
+def _fmt_locs(ids: List[str]) -> str:
+    ids = sorted(ids)
+    return ", ".join(ids[:3]) + (", ..." if len(ids) > 3 else "")
+
+
+def _eval_trusted_location_condition(detail: Dict[str, Any], signin_ctx: SignInContext, location_trust_map: Dict[str, bool] = None, location_kinds: Dict[str, str] = None) -> ConditionEval:
+    """Evaluate the Locations condition.
+
+    The scenario gives either a named location (location_id) or only a trusted/untrusted flag.
+    A named location is matched by ID. The flag alone says "some location with this trust status",
+    so it matches AllTrusted, but it cannot tell whether the sign-in is at a specific named
+    location. When a policy includes or excludes specific locations whose trust status matches the
+    flag (or is unknown), the result is signal-dependent instead of a definitive match. The same
+    holds for a named location when the policy lists a location of the other kind (IP vs country)
+    that the sign-in could also be in.
+    """
     locs = ((detail.get("Conditions", {}) or {}).get("Locations", {}) or {})
     if not locs:
         return ConditionEval(matched=True, reason="Locations: no location condition present")
 
-    if signin_ctx.trusted_location is None:
-        return ConditionEval(matched=True, reason="Locations: scenario trusted_location not provided", runtime_dependent=True)
+    has_location = signin_ctx.location_id is not None
+    has_trusted = signin_ctx.trusted_location is not None
+
+    if not has_location and not has_trusted:
+        return ConditionEval(matched=True, reason="Locations: scenario location not provided", runtime_dependent=True)
 
     include_blocks = locs.get("Include") or []
     exclude_blocks = locs.get("Exclude") or []
@@ -126,85 +171,109 @@ def _eval_trusted_location_condition(detail: Dict[str, Any], signin_ctx: SignInC
     for blk in exclude_blocks:
         exc_locs.update(blk.get("Locations", []) or [])
 
-    # If we don't have the location trust map, fall back to runtime-dependent
-    if location_trust_map is None and (inc_locs or exc_locs):
-        return ConditionEval(
-            matched=True,
-            reason="Locations: policy uses named locations (location trust data not loaded)",
-            runtime_dependent=True
-        )
+    if location_trust_map is None:
+        location_trust_map = {}
+    if location_kinds is None:
+        location_kinds = {}
 
-    # Evaluate based on scenario's trusted_location boolean
+    def _overlapping(ids: Set[str]) -> List[str]:
+        # Listed locations the named location may overlap with. AllTrusted is decided by an explicit flag.
+        return [
+            l for l in ids - {"All"}
+            if not (l == "AllTrusted" and has_trusted)
+            and _may_overlap(signin_ctx.location_id, l, location_kinds)
+        ]
+
+    # Derive trusted status from the selected location when not explicitly set
     is_from_trusted = signin_ctx.trusted_location
+    if is_from_trusted is None and has_location:
+        is_from_trusted = bool(_location_trust(signin_ctx.location_id, location_trust_map))
 
-    # FIRST: Check exclusions - if user matches an exclusion, policy does NOT apply
+    # --- Exclusions ---
+    exc_note = None
     if exc_locs:
         if "All" in exc_locs:
-            # Excludes all locations - policy never applies
             return ConditionEval(matched=False, reason="Locations: policy excludes All locations")
 
-        if is_from_trusted:
-            # User is in trusted location - check if excluded
-            if "AllTrusted" in exc_locs:
-                return ConditionEval(matched=False, reason="Locations: user in trusted location, policy excludes AllTrusted")
+        if "AllTrusted" in exc_locs and is_from_trusted:
+            return ConditionEval(matched=False, reason="Locations: user in trusted location, policy excludes AllTrusted")
 
-            # Check if any specific excluded locations are trusted
-            for loc_id in exc_locs:
-                if loc_id in location_trust_map and location_trust_map[loc_id]:
-                    return ConditionEval(matched=False, reason="Locations: user in trusted location, policy excludes this trusted location")
+        if has_location and signin_ctx.location_id in exc_locs:
+            return ConditionEval(matched=False, reason=f"Locations: user at excluded location ({signin_ctx.location_id})")
+
+        if has_location:
+            possible = _overlapping(exc_locs)
+            if possible:
+                exc_note = (
+                    f"Locations: policy excludes location(s) of another type ({_fmt_locs(possible)}); "
+                    f"the sign-in could be in one of them as well"
+                )
         else:
-            # User is NOT in trusted location - check if any excluded locations are untrusted
-            for loc_id in exc_locs:
-                if loc_id == "AllTrusted":
-                    continue  # User not in trusted location, so AllTrusted exclusion doesn't apply
-                if loc_id in location_trust_map and not location_trust_map[loc_id]:
-                    return ConditionEval(matched=False, reason="Locations: user not in trusted location, policy excludes this non-trusted location")
+            # Only a trusted flag: the sign-in could be at any excluded location with the same trust status.
+            possible = [
+                l for l in exc_locs - {"All", "AllTrusted"}
+                if _location_trust(l, location_trust_map) in (None, is_from_trusted)
+            ]
+            if possible:
+                exc_note = (
+                    f"Locations: policy excludes specific {'trusted' if is_from_trusted else 'untrusted'} "
+                    f"location(s) ({_fmt_locs(possible)}); trusted flag cannot tell if the sign-in is at one of them"
+                )
 
-    # SECOND: Check inclusions - if user matches an inclusion, policy applies
+    def _matched(reason: str) -> ConditionEval:
+        if exc_note:
+            return ConditionEval(matched=True, reason=exc_note, runtime_dependent=True)
+        return ConditionEval(matched=True, reason=reason)
+
+    # --- Inclusions ---
     if not inc_locs:
-        # No inclusions specified means no location requirement
-        return ConditionEval(matched=True, reason="Locations: no location inclusion specified")
+        return _matched("Locations: no location inclusion specified")
 
     if "All" in inc_locs:
-        # Includes all locations (and we already checked exclusions above)
-        return ConditionEval(matched=True, reason="Locations: policy includes All locations")
+        return _matched("Locations: policy includes All locations")
 
-    # Classify included locations as trusted vs untrusted
-    inc_trusted_locs = set()
-    inc_untrusted_locs = set()
+    if has_location:
+        if signin_ctx.location_id in inc_locs:
+            return _matched(f"Locations: user at included location ({signin_ctx.location_id})")
+        if "AllTrusted" in inc_locs and is_from_trusted:
+            return _matched("Locations: user in trusted location, policy includes AllTrusted")
+        possible_inc = _overlapping(inc_locs)
+        if possible_inc:
+            return ConditionEval(
+                matched=True,
+                reason=(
+                    f"Locations: policy includes location(s) of another type ({_fmt_locs(possible_inc)}); "
+                    f"the sign-in could be in one of them as well"
+                ),
+                runtime_dependent=True,
+            )
+        return ConditionEval(matched=False, reason="Locations: user location not in include list")
 
-    for loc_id in inc_locs:
-        if loc_id == "AllTrusted":
-            inc_trusted_locs.add(loc_id)
-        elif loc_id in location_trust_map:
-            if location_trust_map[loc_id]:
-                inc_trusted_locs.add(loc_id)
-            else:
-                inc_untrusted_locs.add(loc_id)
-        else:
-            # Unknown location - conservatively treat as untrusted
-            inc_untrusted_locs.add(loc_id)
+    # No specific location, only trusted flag
+    if "AllTrusted" in inc_locs and is_from_trusted:
+        return _matched("Locations: user in trusted location, policy includes AllTrusted")
 
-    if is_from_trusted:
-        # User is signing in from a trusted location
-        if "AllTrusted" in inc_locs or inc_trusted_locs:
-            return ConditionEval(matched=True, reason="Locations: user in trusted location, policy includes trusted locations")
-        else:
-            # Policy only includes non-trusted locations
-            return ConditionEval(matched=False, reason="Locations: user in trusted location, but policy only includes non-trusted locations")
-    else:
-        # User is NOT signing in from a trusted location
-        if "AllTrusted" in inc_locs:
-            return ConditionEval(matched=False, reason="Locations: policy requires AllTrusted, but user not in trusted location")
-        elif inc_trusted_locs and not inc_untrusted_locs:
-            # Policy ONLY includes trusted locations
-            return ConditionEval(matched=False, reason="Locations: policy only includes trusted locations, but user not in trusted location")
-        elif inc_untrusted_locs:
-            # Policy includes non-trusted locations, which matches
-            return ConditionEval(matched=True, reason="Locations: user not in trusted location, policy includes non-trusted locations")
-        else:
-            # No matching inclusions
-            return ConditionEval(matched=False, reason="Locations: no matching location inclusions")
+    possible_inc = [
+        l for l in inc_locs - {"All", "AllTrusted"}
+        if _location_trust(l, location_trust_map) in (None, is_from_trusted)
+    ]
+    if possible_inc:
+        return ConditionEval(
+            matched=True,
+            reason=(
+                f"Locations: policy includes specific {'trusted' if is_from_trusted else 'untrusted'} "
+                f"location(s) ({_fmt_locs(possible_inc)}); trusted flag cannot tell if the sign-in is at one of them"
+            ),
+            runtime_dependent=True,
+        )
+
+    if "AllTrusted" in inc_locs:
+        return ConditionEval(matched=False, reason="Locations: policy requires a trusted location, user not in trusted location")
+    return ConditionEval(
+        matched=False,
+        reason=f"Locations: policy only includes {'untrusted' if is_from_trusted else 'trusted'} locations, "
+               f"user in {'trusted' if is_from_trusted else 'untrusted'} location",
+    )
 
 def _eval_user_risk_condition(detail: Dict[str, Any], signin_ctx: SignInContext) -> ConditionEval:
     cond = (detail.get("Conditions", {}) or {})
@@ -526,13 +595,13 @@ def _eval_signin_risk_condition(detail: Dict[str, Any], signin_ctx: SignInContex
 
     return ConditionEval(matched=False, reason=f"SignInRisk: did not match ({got})")
 
-def evaluate_conditions(detail: Dict[str, Any], signin_ctx: SignInContext, location_trust_map: Dict[str, bool] = None) -> Tuple[bool, List[str], List[str]]:
+def evaluate_conditions(detail: Dict[str, Any], signin_ctx: SignInContext, location_trust_map: Dict[str, bool] = None, location_kinds: Dict[str, str] = None) -> Tuple[bool, List[str], List[str]]:
     policy_mode = _policy_target_mode(detail)
 
     evals: List[ConditionEval] = []
     evals.append(_eval_app_condition(detail, signin_ctx, policy_mode))
     evals.append(_eval_acr_condition(detail, signin_ctx, policy_mode))
-    evals.append(_eval_trusted_location_condition(detail, signin_ctx, location_trust_map))
+    evals.append(_eval_trusted_location_condition(detail, signin_ctx, location_trust_map, location_kinds))
     evals.append(_eval_device_state_condition(detail, signin_ctx))
     evals.append(_eval_platform_condition(detail, signin_ctx))
     evals.append(_eval_client_app_condition(detail, signin_ctx))

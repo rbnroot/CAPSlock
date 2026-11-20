@@ -6,6 +6,8 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from CAPSlock.conditions import _location_trust
+from CAPSlock.db import load_named_locations
 from CAPSlock.models import PolicyResult, SignInContext
 from CAPSlock.query import get_policy_results_for_user
 
@@ -77,6 +79,7 @@ def _scenario_dict(ctx: SignInContext) -> Dict[str, Any]:
         "resource": d.get("app_id"),
         "acr": d.get("acr"),
         "trusted_location": d.get("trusted_location"),
+        "location_id": d.get("location_id"),
         "platform": d.get("platform"),
         "client_app": d.get("client_app"),
         "signin_risk": d.get("signin_risk"),
@@ -104,7 +107,7 @@ def _gap_record(
     }
 
 
-def _classify_gaps(results: List[PolicyResult], ctx: SignInContext) -> List[Dict[str, Any]]:
+def _classify_gaps(results: List[PolicyResult], ctx: SignInContext, location_trusted: bool = False) -> List[Dict[str, Any]]:
     sig = [r for r in results if r.applies and _has_signal_dependent_note(r.applies_reason)]
     def_en = _definitive_enabled(results)
     def_rep = _definitive_reporting(results)
@@ -112,7 +115,8 @@ def _classify_gaps(results: List[PolicyResult], ctx: SignInContext) -> List[Dict
     scenario = _scenario_dict(ctx)
     gaps: List[Dict[str, Any]] = []
 
-    if ctx.trusted_location is True:
+    # An explicit trusted flag wins; otherwise a named location's own trust status counts.
+    if ctx.trusted_location is True or (ctx.trusted_location is None and location_trusted):
         if not def_en and not def_rep:
             gaps.append(
                 _gap_record(
@@ -189,6 +193,7 @@ def iter_scenarios(
     platforms: Optional[str] = None,
     client_app: Optional[str] = None,
     trusted_location: Optional[bool] = None,
+    location_id: Optional[str] = None,
     signin_risk: Optional[str] = None,
     user_risk: Optional[str] = None,
     auth_flow: Optional[str] = None,
@@ -196,7 +201,11 @@ def iter_scenarios(
 ) -> Iterable[SignInContext]:
     platform_vals = _values_or_default(platforms, ["windows", "macos", "linux", "ios", "android"])
     client_vals = _values_or_default(client_app, [None, "browser", "mobileAppsAndDesktopClients", "exchangeActiveSync", "other"])
-    trusted_vals = _values_or_default(trusted_location, [None, True, False])
+    if location_id is not None:
+        # A named location carries its own trust status; a fixed flag overrides it.
+        trusted_vals = [trusted_location]
+    else:
+        trusted_vals = _values_or_default(trusted_location, [None, True, False])
     signin_vals = _values_or_default(signin_risk, [None, "none", "low", "medium", "high"])
     user_vals = _values_or_default(user_risk, [None, "low", "medium", "high"])
     auth_vals = _values_or_default(auth_flow, [None, "devicecodeflow", "authtransfer"])
@@ -209,6 +218,7 @@ def iter_scenarios(
             app_id=base.app_id,
             acr=base.acr,
             trusted_location=t,
+            location_id=location_id,
             platform=p,
             client_app=c,
             signin_risk=sr,
@@ -238,11 +248,17 @@ def analyze(
 
     scenarios_evaluated = 0
 
+    location_id = fixed.get("location_id")
+    location_trusted = location_id is not None and bool(
+        _location_trust(location_id, load_named_locations(session))
+    )
+
     for ctx in iter_scenarios(
         base=base,
         platforms=fixed.get("platform"),
         client_app=fixed.get("client_app"),
         trusted_location=fixed.get("trusted_location"),
+        location_id=location_id,
         signin_risk=fixed.get("signin_risk"),
         user_risk=fixed.get("user_risk"),
         auth_flow=fixed.get("auth_flow"),
@@ -257,7 +273,7 @@ def analyze(
             assume_groups=assume_groups or [],
             assume_roles=assume_roles or [],
         )
-        gaps = _classify_gaps(results, ctx)
+        gaps = _classify_gaps(results, ctx, location_trusted)
         for g in gaps:
             gt = g["gap_type"]
             if gt in gap_counts:
@@ -272,6 +288,7 @@ def analyze(
         "user": user_upn,
         "resource": base.app_id,
         "acr": base.acr,
+        "location_id": location_id,
         "scenarios_evaluated": scenarios_evaluated,
         "max_scenarios": max_scenarios,
         "gap_counts": gap_counts,

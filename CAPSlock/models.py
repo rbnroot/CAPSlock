@@ -27,6 +27,7 @@ class SignInContext:
 
     # Location
     trusted_location: Optional[bool] = None
+    location_id: Optional[str] = None
 
     # Device
     device_compliant: Optional[bool] = None          # Update later 

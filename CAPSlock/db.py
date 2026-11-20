@@ -50,9 +50,11 @@ def load_named_locations(session) -> Dict[str, bool]:
     A location is trusted if "trusted" is in the Categories array of its detail.
 
     Returns:
-        Dict mapping location objectId to boolean indicating if it's trusted
+        Dict mapping location IDs (policyIdentifier, objectId and the NetworkId of bundled
+        KnownNetworkPolicies entries) to a boolean indicating if it's trusted
     """
     location_trust_map: Dict[str, bool] = {}
+    location_ids = set()
 
     try:
         locations = session.query(Policy).filter(Policy.policyType == 6).all()
@@ -70,7 +72,23 @@ def load_named_locations(session) -> Dict[str, bool]:
                     except:
                         pass
 
-            location_trust_map[loc.objectId] = is_trusted
+            for loc_id in (loc.policyIdentifier, loc.objectId):
+                if loc_id:
+                    location_trust_map[loc_id] = is_trusted
+                    location_ids.add(loc_id)
+
+            for detail_raw in (loc.policyDetail or []):
+                try:
+                    detail = json.loads(detail_raw)
+                    knp = detail.get("KnownNetworkPolicies")
+                    if knp and knp.get("NetworkId"):
+                        knp_cats = knp.get("Categories") or detail.get("Categories") or []
+                        knp_trusted = "trusted" in [str(c).lower() for c in knp_cats]
+                        # A bundled entry never overrides a named location with the same ID.
+                        if knp["NetworkId"] not in location_ids:
+                            location_trust_map[knp["NetworkId"]] = knp_trusted
+                except Exception:
+                    pass
 
     except Exception as e:
         print(f"[!] Failed to load named locations: {e}")
