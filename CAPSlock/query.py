@@ -4,7 +4,7 @@ from sqlalchemy import func
 from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, Application, ServicePrincipal
 from CAPSlock.db import load_capolicies, parse_policy_details, load_named_locations
 from CAPSlock.models import SignInContext, PolicyResult, UserContext
-from CAPSlock.resolvers import build_name_resolver
+from CAPSlock.resolvers import build_name_resolver, expand_group_ids, roles_via_groups
 from CAPSlock.evaluator import evaluate_policy_detail
 
 
@@ -61,7 +61,19 @@ def _build_user_context(session, user: User, assumed_groups: set[str] = None, as
         .filter(User.objectId == user.objectId)
         .all()
     )
-    group_ids = {g.objectId for g in groups}
+    direct_group_ids = {g.objectId for g in groups}
+    assumed_groups = assumed_groups or set()
+
+    # Cache per session: analyze builds this context once per scenario.
+    cache_key = ("group_membership", user.objectId, frozenset(assumed_groups))
+    if cache_key not in session.info:
+        session.info[cache_key] = (
+            expand_group_ids(session, direct_group_ids),
+            expand_group_ids(session, assumed_groups),
+            # Role-assignable groups cannot contain groups, so only direct groups hold roles.
+            roles_via_groups(session, direct_group_ids | assumed_groups),
+        )
+    group_ids, assumed_groups, group_roles = session.info[cache_key]
 
     roles = (
         session.query(DirectoryRole)
@@ -69,6 +81,7 @@ def _build_user_context(session, user: User, assumed_groups: set[str] = None, as
         .filter(User.objectId == user.objectId)
         .all()
     )
+    roles += group_roles
 
     role_object_ids = {r.objectId for r in roles}
 

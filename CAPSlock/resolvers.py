@@ -2,7 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Set
 from CAPSlock.models import UserContext, NameResolver
-from roadtools.roadlib.metadef.database import User, Group, DirectoryRole
+from sqlalchemy import inspect
+from roadtools.roadlib.metadef.database import User, Group, DirectoryRole, lnk_group_member_group
 
 
 def get_user_by_upn(session, upn: str) -> Optional[User]:
@@ -41,6 +42,40 @@ def build_user_context(session, user: User) -> UserContext:
         role_template_ids=role_template_ids,
         assumed_groups=set(),
         assumed_roles=set(),
+    )
+
+
+def _has_table(session, name: str) -> bool:
+    # Older roadrecon DBs lack some link tables.
+    return inspect(session.get_bind()).has_table(name)
+
+
+def expand_group_ids(session, group_ids: Set[str]) -> Set[str]:
+    # Conditional Access uses transitive membership, so walk up group nesting.
+    result = set(group_ids)
+    if not _has_table(session, "lnk_group_member_group"):
+        return result
+    frontier = set(group_ids)
+    while frontier:
+        parents = (
+            session.query(lnk_group_member_group.c.Group)
+            .filter(lnk_group_member_group.c.childGroup.in_(frontier))
+            .all()
+        )
+        frontier = {p for (p,) in parents if p and p not in result}
+        result |= frontier
+    return result
+
+
+def roles_via_groups(session, group_ids: Set[str]) -> list:
+    # Directory roles assigned to role-assignable groups the user is in.
+    if not group_ids or not _has_table(session, "lnk_role_member_group"):
+        return []
+    return (
+        session.query(DirectoryRole)
+        .join(DirectoryRole.memberGroups)
+        .filter(Group.objectId.in_(group_ids))
+        .all()
     )
 
 
